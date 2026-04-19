@@ -1,0 +1,27 @@
+{
+  "blacklist_paths": [
+    "/.env",
+    "/.git",
+    "/wp-admin",
+    "/wp-login.php",
+    "/etc/passwd",
+    "/etc/shadow",
+    "/.htaccess",
+    "/config.php",
+    "/admin",
+    "/phpmyadmin"
+  ],
+  "forbidden_usernames": [
+    "root",
+    "admin",
+    "administrator",
+    "test",
+    "guest"
+  ],
+  "known_malicious_ips": [
+    "1.2.3.4",
+    "5.6.7.8"
+  ],
+  "auto_block_threshold": 5,
+  "confidence_threshold": 0.6
+}

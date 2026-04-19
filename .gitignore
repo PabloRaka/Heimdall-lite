@@ -1,0 +1,58 @@
+# Environments & Secrets (Wajib!)
+.env
+.venv/
+venv/
+env/
+
+# Database & Memory files (Jangan commit LTM dan STM)
+data/security_archive.db
+data/stm_context.json
+data/*.db
+data/*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Python Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & CI
+test/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# IDE & System
+.vscode/
+.idea/
+.DS_Store
+.agents/
