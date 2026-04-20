@@ -1,4 +1,4 @@
-from modules.memory import STM, LTM, GM
+from modules.core.memory import STM, LTM, GM
 
 def _format_decision(status: str, action: str, reason: str, confidence: float, target: str) -> dict:
     """Helper untuk memastikan output JSON Schema-nya selalu konsisten dengan arsitektur"""

@@ -10,8 +10,8 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(BASE_DIR))
 
-from modules.memory import STM, LTM, DB_PATH
-from modules.reporter import reporter
+from modules.core.memory import STM, LTM, DB_PATH
+from modules.core.reporter import reporter
 
 # Ambil env vars dari .env (Sudah di-load oleh modul lain yang di-import)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

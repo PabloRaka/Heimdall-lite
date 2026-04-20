@@ -9,6 +9,7 @@ data/security_archive.db
 data/stm_context.json
 data/*.db
 data/*.sqlite3
+fim_snapshot.json
 
 # Logs
 logs/
@@ -38,6 +39,7 @@ share/python-wheels/
 
 # Testing & CI
 test/
+tests/
 .tox/
 .nox/
 .coverage

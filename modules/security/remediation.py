@@ -1,0 +1,156 @@
+import subprocess
+import logging
+import time
+
+logger = logging.getLogger(__name__)
+
+
+class AutoRemediation:
+    """
+    Modul Auto-Remediation.
+    Secara otomatis memperbaiki celah keamanan yang ditemukan oleh scanner.
+    Setiap perbaikan dicatat dan dilaporkan.
+    """
+
+    @staticmethod
+    def _run_cmd(cmd: str) -> tuple:
+        try:
+            result = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=15)
+            return result.stdout.strip(), result.stderr.strip(), result.returncode
+        except Exception as e:
+            return "", str(e), 1
+
+    @classmethod
+    def remediate_all(cls) -> str:
+        """
+        Menjalankan seluruh remediasi otomatis.
+        Returns: string laporan tindakan yang dilakukan.
+        """
+        logger.info("[REMEDIATION] Memulai auto-remediation...")
+        actions = []
+
+        # 1. Fix Firewall
+        result = cls._fix_firewall()
+        if result:
+            actions.append(result)
+
+        # 2. Fix SSH
+        ssh_results = cls._fix_ssh()
+        actions.extend(ssh_results)
+
+        # 3. Fix Failed Services
+        result = cls._fix_failed_services()
+        if result:
+            actions.append(result)
+
+        if not actions:
+            return "🟢 *Auto-Remediation*: Tidak ada masalah yang perlu diperbaiki. Semua aman."
+
+        report = ["🔧 *AUTO-REMEDIATION REPORT*\n"]
+        report.extend(actions)
+        report.append(f"\n🕐 _Remediated at: {time.strftime('%Y-%m-%d %H:%M:%S')}_")
+
+        logger.info(f"[REMEDIATION] Selesai. {len(actions)} tindakan dilakukan.")
+        return "\n\n".join(report)
+
+    @classmethod
+    def _fix_firewall(cls) -> str:
+        """Mengaktifkan UFW jika mati"""
+        out, err, code = cls._run_cmd("sudo ufw status")
+
+        if "inactive" in out.lower():
+            logger.warning("[REMEDIATION] UFW inactive — mengaktifkan...")
+            out2, err2, code2 = cls._run_cmd("sudo ufw --force enable")
+
+            if code2 == 0:
+                logger.info("[REMEDIATION] ✅ UFW berhasil diaktifkan")
+                return "✅ *Firewall (UFW)*: Berhasil diaktifkan secara otomatis."
+            else:
+                logger.warning(f"[REMEDIATION] ❌ Gagal mengaktifkan UFW: {err2}")
+                return f"❌ *Firewall (UFW)*: Gagal diaktifkan — {err2}"
+
+        return ""
+
+    @classmethod
+    def _fix_ssh(cls) -> list:
+        """Memperbaiki konfigurasi SSH yang lemah"""
+        results = []
+        out, err, code = cls._run_cmd("sudo sshd -T | grep -iE '^permitrootlogin|^passwordauthentication'")
+
+        if not out:
+            return results
+
+        sshd_config = "/etc/ssh/sshd_config"
+        needs_reload = False
+
+        if "permitrootlogin yes" in out.lower():
+            logger.warning("[REMEDIATION] PermitRootLogin yes detected — memperbaiki...")
+            _, _, rc = cls._run_cmd(
+                f"sudo sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' {sshd_config} && "
+                f"sudo sed -i 's/^#PermitRootLogin yes/PermitRootLogin no/' {sshd_config}"
+            )
+            if rc == 0:
+                results.append("✅ *SSH PermitRootLogin*: Diubah dari `yes` ke `no`.")
+                needs_reload = True
+            else:
+                results.append("❌ *SSH PermitRootLogin*: Gagal mengubah konfigurasi.")
+
+        if "passwordauthentication yes" in out.lower():
+            logger.warning("[REMEDIATION] PasswordAuthentication yes detected — memperbaiki...")
+            _, _, rc = cls._run_cmd(
+                f"sudo sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' {sshd_config} && "
+                f"sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' {sshd_config}"
+            )
+            if rc == 0:
+                results.append("✅ *SSH PasswordAuth*: Diubah dari `yes` ke `no`.")
+                needs_reload = True
+            else:
+                results.append("❌ *SSH PasswordAuth*: Gagal mengubah konfigurasi.")
+
+        if needs_reload:
+            _, _, rc = cls._run_cmd("sudo systemctl reload sshd 2>/dev/null || sudo systemctl reload ssh")
+            if rc == 0:
+                results.append("✅ *SSH Service*: Berhasil di-reload.")
+            else:
+                results.append("⚠️ *SSH Service*: Gagal reload — restart manual diperlukan.")
+
+        return results
+
+    @classmethod
+    def _fix_failed_services(cls) -> str:
+        """Mencoba restart service yang gagal"""
+        out, err, code = cls._run_cmd("systemctl --failed --no-pager --plain")
+
+        failed_services = []
+        if out:
+            for line in out.split('\n'):
+                if 'loaded failed failed' in line:
+                    parts = line.split()
+                    if parts:
+                        failed_services.append(parts[0])
+
+        if not failed_services:
+            return ""
+
+        fixed = []
+        still_broken = []
+
+        for svc in failed_services[:5]:  # Limit ke 5 service
+            logger.info(f"[REMEDIATION] Mencoba restart {svc}...")
+            _, _, rc = cls._run_cmd(f"sudo systemctl restart {svc}")
+
+            if rc == 0:
+                fixed.append(svc)
+            else:
+                still_broken.append(svc)
+
+        result_parts = []
+        if fixed:
+            result_parts.append(f"✅ *Services Restarted*: {', '.join(fixed)}")
+        if still_broken:
+            result_parts.append(f"❌ *Services Still Failed*: {', '.join(still_broken)}")
+
+        return "\n".join(result_parts) if result_parts else ""
+
+
+remediation = AutoRemediation()

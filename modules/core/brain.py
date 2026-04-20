@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 # Setup paths & env
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 # Pastikan folder logs/ selalu ada sebelum menginisialisasi file handler
@@ -24,9 +24,9 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "minimax-m1:cloud")
 OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
 
 # Import modul internal
-from modules.sanitizer import build_prompt
-from modules.memory import STM, LTM
-from modules.fallback import rule_based_fallback
+from modules.core.sanitizer import build_prompt
+from modules.core.memory import STM, LTM
+from modules.core.fallback import rule_based_fallback
 
 class Brain:
     """
