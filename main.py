@@ -1,5 +1,6 @@
 import os
 import time
+import yaml
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -7,9 +8,31 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
+class ConfigManager:
+    def __init__(self, config_file):
+        self.config = {}
+        try:
+            if config_file.exists():
+                with open(config_file, 'r') as f:
+                    self.config = yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f"[WARN] Error loading config: {e}")
+
+    def get(self, key, default=None):
+        keys = key.split('.')
+        val = self.config
+        for k in keys:
+            if isinstance(val, dict) and k in val:
+                val = val[k]
+            else:
+                return default
+        return val
+
+config = ConfigManager(BASE_DIR / "config.yaml")
+
 # Import Modules
 from modules.sensor import LogSensor
-from modules.memory import STM, LTM
+from modules.memory import STM, LTM, GM
 from modules.brain import brain
 from modules.executor import executor
 from modules.reporter import reporter
@@ -25,6 +48,26 @@ def process_pipeline(event: dict):
 
     print(f"\n[PIPELINE] Memproses event dari IP: {ip}")
     
+    # Fast Path — bypass Brain sepenuhnya
+    path_val = event.get("path", "")
+    if path_val is None:
+        path_val = ""
+        
+    if GM.is_known_bad_ip(ip) or GM.is_blacklisted_path(path_val):
+        try:
+            executor.block_cloudflare(ip, "GM Fast Path")
+        except Exception as e:
+            print(f"[PIPELINE] ❌ Executor gagal: {e}")
+            reporter.send_message(f"❌ Executor error untuk {ip}: {e}")
+            
+        LTM.add_incident(ip, threat_type="THREAT", action="BLOCK_CF", reason="GM Fast Path match", confidence=1.0)
+        reporter.send_message(f"⚡ FAST BLOCK: `{ip}`")
+        return
+    
+    if LTM.is_whitelisted(ip):
+        print(f"[PIPELINE] ✅ {ip} ada di whitelist, diabaikan.")
+        return
+
     # 1. Memory Update (STM)
     # Catat aktivitas terbaru IP ini ke dalam Short-Term Memory
     STM.increment(ip, failed_attempts=1, path=event.get("path"), service=event.get("service"))
@@ -43,10 +86,14 @@ def process_pipeline(event: dict):
         
         # Eksekusi blokir
         executed = False
-        if action == "BLOCK_CF":
-            executed = executor.block_cloudflare(ip, reason)
-        elif action == "BLOCK_UFW":
-            executed = executor.block_ufw(ip)
+        try:
+            if action == "BLOCK_CF":
+                executed = executor.block_cloudflare(ip, reason)
+            elif action == "BLOCK_UFW":
+                executed = executor.block_ufw(ip)
+        except Exception as e:
+            print(f"[PIPELINE] ❌ Executor gagal: {e}")
+            reporter.send_message(f"❌ Executor error untuk {ip}: {e}")
             
         if executed:
             # Catat insiden ke Long-Term Memory (Database)
@@ -78,8 +125,8 @@ def start_micro_soc():
     # 2. Siapkan direktori logs jika belum ada
     LOGS_DIR = BASE_DIR / "logs"
     LOGS_DIR.mkdir(exist_ok=True)
-    auth_log = str(LOGS_DIR / "auth.log")
-    nginx_log = str(LOGS_DIR / "access.log")
+    auth_log = config.get("sensor.auth_log", str(LOGS_DIR / "auth.log"))
+    nginx_log = config.get("sensor.nginx_log", str(LOGS_DIR / "access.log"))
     
     # 3. Inisialisasi Sensor dan sambungkan ke Pipeline
     sensor = LogSensor(callback=process_pipeline)

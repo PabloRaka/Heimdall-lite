@@ -1,12 +1,19 @@
 import os
 import json
 import requests
+import logging
 from dotenv import load_dotenv
 from pathlib import Path
 
 # Setup paths & env
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
+
+logging.basicConfig(
+    filename=BASE_DIR / "logs/agent.log",
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "minimax-m1:cloud")
@@ -78,14 +85,15 @@ class Brain:
         # 1. Gather Context (Kumpulkan ingatan tentang IP ini)
         stm_context = STM.get(ip) or {}
         ltm_context = LTM.get_incident_history(ip)
+        is_fp = LTM.is_false_positive(ip)
 
         # 2. Sanitasi & Rakit Prompt
         raw_log = event.get("raw_log", str(event))
-        prompt = build_prompt(raw_log, stm_context, ltm_context)
+        prompt = build_prompt(raw_log, stm_context, ltm_context, is_false_positive=is_fp)
 
         # 3. Eksekusi LLM (dengan Safety Net)
         try:
-            print(f"[BRAIN] Menghubungi LLM untuk menganalisis {ip}...")
+            logging.info(f"[BRAIN] Menghubungi LLM untuk menganalisis {ip}...")
             llm_output = Brain._call_llm(prompt)
             
             # 4. Parse output
@@ -96,13 +104,19 @@ class Brain:
             if not required_keys.issubset(decision.keys()):
                 raise ValueError(f"JSON dari LLM tidak memiliki keys yang lengkap: {decision.keys()}")
                 
-            print(f"[BRAIN] Analisis LLM sukses (Confidence: {decision['confidence']}) -> {decision['action']}")
+            confidence = float(decision.get("confidence", 0.0))
+            if confidence < 0.6 and decision.get("action") in ["BLOCK_CF", "BLOCK_UFW"]:
+                logging.warning(f"[BRAIN] Confidence terlalu rendah ({confidence}), turun ke ALERT_ONLY")
+                decision["action"] = "ALERT_ONLY"
+                decision["reason"] += f" [Confidence rendah: {confidence}, perlu konfirmasi admin]"
+
+            logging.info(f"[BRAIN] Analisis LLM sukses (Confidence: {decision['confidence']}) -> {decision['action']}")
             return decision
 
         except Exception as e:
             # Apapun errornya (Timeout, 500 Server Error, JSON Decode Failed, Format Salah)
             # Kita langsung lemparkan ke Fallback Engine yang deterministik.
-            print(f"[BRAIN] ⚠️ AI Analysis gagal ({e}). Jatuh ke Fallback Engine...")
+            logging.warning(f"[BRAIN] ⚠️ AI Analysis gagal ({e}). Jatuh ke Fallback Engine...")
             return rule_based_fallback(event)
 
 # Singleton Instance

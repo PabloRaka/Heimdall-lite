@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import time
+import threading
 from pathlib import Path
 
 # Paths Setup
@@ -9,6 +10,9 @@ DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "security_archive.db"
 STM_PATH = DATA_DIR / "stm_context.json"
 GM_PATH = DATA_DIR / "global_rules.json"
+
+_stm_lock = threading.Lock()
+_gm_cache = None
 
 # Inisialisasi file STM jika belum ada
 if not STM_PATH.exists():
@@ -21,15 +25,25 @@ class STM:
     @classmethod
     def _read_stm(cls) -> dict:
         try:
-            with open(STM_PATH, 'r') as f:
-                return json.load(f)
+            with _stm_lock:
+                with open(STM_PATH, 'r') as f:
+                    data = json.load(f)
+            # Hapus entri yang sudah lebih dari 60 menit
+            now = time.time()
+            cutoff = 3600  # 60 menit
+            cleaned = {
+                ip: v for ip, v in data.items()
+                if (now - time.mktime(time.strptime(v["last_seen"], "%Y-%m-%dT%H:%M:%S"))) < cutoff
+            }
+            return cleaned
         except Exception:
             return {}
 
     @classmethod
     def _write_stm(cls, data: dict):
-        with open(STM_PATH, 'w') as f:
-            json.dump(data, f, indent=2)
+        with _stm_lock:
+            with open(STM_PATH, 'w') as f:
+                json.dump(data, f, indent=2)
 
     @classmethod
     def get(cls, ip: str) -> dict:
@@ -137,21 +151,33 @@ class LTM:
         conn.commit()
         conn.close()
 
+    @classmethod
+    def is_false_positive(cls, ip: str) -> bool:
+        conn = cls._get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM false_positives WHERE ip = ?", (ip,))
+        result = cursor.fetchone()
+        conn.close()
+        return bool(result)
+
 
 class GM:
     """Global Memory - Static Rules (JSON file)"""
     
     @classmethod
     def _get_rules(cls) -> dict:
-        try:
-            with open(GM_PATH, 'r') as f:
-                return json.load(f)
-        except Exception:
-            return {
-                "blacklist_paths": [],
-                "forbidden_usernames": [],
-                "known_malicious_ips": []
-            }
+        global _gm_cache
+        if _gm_cache is None:
+            try:
+                with open(GM_PATH, 'r') as f:
+                    _gm_cache = json.load(f)
+            except Exception:
+                _gm_cache = {
+                    "blacklist_paths": [],
+                    "forbidden_usernames": [],
+                    "known_malicious_ips": []
+                }
+        return _gm_cache
 
     @classmethod
     def is_blacklisted_path(cls, path: str) -> bool:
