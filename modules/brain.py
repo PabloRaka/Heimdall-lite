@@ -9,8 +9,12 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+# Pastikan folder logs/ selalu ada sebelum menginisialisasi file handler
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
 logging.basicConfig(
-    filename=BASE_DIR / "logs/agent.log",
+    filename=LOG_DIR / "agent.log",
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
