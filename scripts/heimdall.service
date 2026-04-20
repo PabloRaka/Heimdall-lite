@@ -1,0 +1,18 @@
+[Unit]
+Description=Heimdall-Lite Micro-SOC Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Adjust this path if you cloned the repo elsewhere
+WorkingDirectory=/opt/Heimdall-lite
+ExecStart=/opt/Heimdall-lite/start.sh
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=heimdall-soc
+
+[Install]
+WantedBy=multi-user.target

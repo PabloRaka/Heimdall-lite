@@ -144,7 +144,29 @@ modules/
    chmod +x start.sh
    ./start.sh
    ```
-   *(For production deployment, it is recommended to set this launcher as a `systemd` service).*
+### 🚀 Running as a Systemd Service (Production)
+
+For permanent deployment, configure Heimdall-Lite to run as a background service so it automatically starts on boot and runs continuously.
+
+1. **Copy the Service Template**
+   We have structured a `.service` file in the repo. Copy it to your systemd directory:
+   ```bash
+   sudo cp scripts/heimdall.service /etc/systemd/system/
+   ```
+   *(Note: The default template assumes you installed Heimdall-Lite in `/opt/Heimdall-lite`. If you installed it elsewhere, edit `/etc/systemd/system/heimdall.service` and adjust the `WorkingDirectory` and `ExecStart` paths).*
+
+2. **Reload and Enable**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable heimdall
+   sudo systemctl start heimdall
+   ```
+
+3. **Check Status and Logs**
+   ```bash
+   sudo systemctl status heimdall
+   sudo journalctl -u heimdall -f
+   ```
 
 ## 📱 Admin Interaction via Telegram
 
