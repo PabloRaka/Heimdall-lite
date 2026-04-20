@@ -22,129 +22,124 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Heimdall — Micro-SOC Dashboard</title>
-<meta name="description" content="Real-time security monitoring dashboard for Heimdall Micro-SOC Agent">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>HEIMDALL TERMINAL</title>
 <style>
   :root {
-    --bg: #0a0e17;
-    --surface: #111827;
-    --surface2: #1f2937;
-    --border: #374151;
-    --text: #e5e7eb;
-    --text-dim: #9ca3af;
-    --accent: #3b82f6;
-    --accent-glow: rgba(59,130,246,0.15);
-    --danger: #ef4444;
-    --danger-glow: rgba(239,68,68,0.15);
-    --warn: #f59e0b;
-    --safe: #22c55e;
+    --bg: #000000;
+    --text: #ffb000; /* Amber phosphor */
+    --dim: #a87200;
+    --border: #332200;
+    --danger: #ff0033;
+    --warn: #ffff00;
+    --safe: #00ff00;
+    --accent: #00ffff;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family:'Inter', sans-serif;
-    background:var(--bg);
-    color:var(--text);
-    min-height:100vh;
+    font-family: 'Courier New', Courier, monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    padding: 15px;
   }
-  .topbar {
-    background:linear-gradient(135deg, var(--surface) 0%, #0f172a 100%);
-    border-bottom:1px solid var(--border);
-    padding:16px 32px;
-    display:flex; justify-content:space-between; align-items:center;
+  /* Soft CRT effect */
+  body::after {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0; left: 0; bottom: 0; right: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
   }
-  .topbar h1 { font-size:20px; font-weight:700; }
-  .topbar h1 span { color:var(--accent); }
-  .topbar .live { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--safe); }
-  .topbar .live .dot {
-    width:8px; height:8px; background:var(--safe); border-radius:50%;
-    animation: pulse 2s infinite;
+  .header {
+    display: flex; justify-content: space-between;
+    border-bottom: 2px solid var(--text);
+    padding-bottom: 8px; margin-bottom: 20px;
+    text-transform: uppercase;
   }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .header h1 { font-size: 20px; font-weight: bold; letter-spacing: 2px;}
+  .header .blink { animation: blinker 1s linear infinite; }
+  @keyframes blinker { 50% { opacity: 0; } }
 
   .grid {
-    display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-    gap:20px; padding:24px 32px;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 15px; margin-bottom: 30px;
   }
   .card {
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:12px;
-    padding:20px 24px;
-    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid var(--text);
+    padding: 15px;
+    background: rgba(255, 176, 0, 0.03);
   }
-  .card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.3); }
-  .card .label { font-size:12px; text-transform:uppercase; color:var(--text-dim); letter-spacing:1px; margin-bottom:8px; }
-  .card .value { font-size:32px; font-weight:700; }
-  .card .value.danger { color:var(--danger); }
-  .card .value.warn { color:var(--warn); }
-  .card .value.safe { color:var(--safe); }
-  .card .value.accent { color:var(--accent); }
+  .card .label { font-size: 12px; text-transform: uppercase; margin-bottom: 8px; color: var(--dim); }
+  .card .value { font-size: 28px; font-weight: bold; }
+  .card .value.danger { color: var(--danger); text-shadow: 0 0 5px rgba(255,0,51,0.5); }
+  .card .value.warn { color: var(--warn); text-shadow: 0 0 5px rgba(255,255,0,0.5); }
+  .card .value.safe { color: var(--safe); text-shadow: 0 0 5px rgba(0,255,0,0.5); }
+  .card .value.accent { color: var(--accent); text-shadow: 0 0 5px rgba(0,255,255,0.5); }
 
-  .section { padding:0 32px 24px; }
-  .section h2 { font-size:16px; font-weight:600; margin-bottom:12px; color:var(--text-dim); }
+  .section { margin-bottom: 30px; }
+  .section-title {
+    background: var(--text); color: var(--bg);
+    padding: 4px 12px; display: inline-block; font-weight: bold;
+    text-transform: uppercase; margin-bottom: 12px; letter-spacing: 1px;
+  }
 
   table {
-    width:100%; border-collapse:collapse;
-    background:var(--surface); border-radius:12px; overflow:hidden;
-    border:1px solid var(--border);
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    border: 1px solid var(--border);
   }
-  thead { background:var(--surface2); }
-  th { padding:12px 16px; text-align:left; font-size:12px; text-transform:uppercase; color:var(--text-dim); letter-spacing:0.5px; }
-  td { padding:12px 16px; font-size:13px; border-top:1px solid var(--border); }
-  tr:hover td { background:var(--accent-glow); }
-  .badge {
-    display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;
-  }
-  .badge.block { background:var(--danger-glow); color:var(--danger); }
-  .badge.alert { background:rgba(245,158,11,0.15); color:var(--warn); }
-  .badge.safe { background:rgba(34,197,94,0.15); color:var(--safe); }
+  th { text-align: left; padding: 8px; border-bottom: 1px solid var(--text); color: var(--dim); text-transform: uppercase; }
+  td { padding: 8px; border-bottom: 1px dashed var(--border); word-break: break-all; }
+  tr:hover td { background: rgba(255,176,0,0.1); }
+  
+  .badge { padding: 2px 6px; font-weight: bold; text-transform: uppercase; }
+  .badge.block { background: var(--bg); color: var(--danger); outline: 1px solid var(--danger); }
+  .badge.alert { background: var(--bg); color: var(--warn); outline: 1px solid var(--warn); }
+  .badge.safe { background: var(--bg); color: var(--safe); outline: 1px solid var(--safe); }
 
-  .stm-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
-  .stm-card {
-    background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px 18px;
-  }
-  .stm-card .ip { font-weight:600; color:var(--accent); margin-bottom:4px; }
-  .stm-card .meta { font-size:12px; color:var(--text-dim); }
+  .stm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+  .stm-card { border: 1px solid var(--text); padding: 12px; font-size: 12px; background: rgba(255, 176, 0, 0.03); line-height: 1.5; }
+  .stm-card .ip { color: var(--accent); font-weight: bold; font-size: 14px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); padding-bottom: 4px; }
 
-  .footer { text-align:center; padding:24px; color:var(--text-dim); font-size:12px; }
+  .footer { text-align: right; font-size: 11px; color: var(--dim); margin-top: 30px; border-top: 1px solid var(--border); padding-top: 10px; }
 
   @media(max-width:768px) {
-    .grid { padding:16px; gap:12px; }
-    .section { padding:0 16px 16px; }
-    .topbar { padding:12px 16px; }
+    .grid { grid-template-columns: 1fr 1fr; }
   }
 </style>
 </head>
 <body>
-<div class="topbar">
-  <h1>🛡️ <span>Heimdall</span> Micro-SOC</h1>
-  <div class="live"><div class="dot"></div> Live Monitoring</div>
+<div class="header">
+  <h1>HEIMDALL-LITE :: SYS_MONITOR</h1>
+  <div><span class="blink">█</span> SYS_ONLINE : PRT_8443</div>
 </div>
 
 <div class="grid" id="stats">
-  <div class="card"><div class="label">Total Incidents Today</div><div class="value accent" id="s-today">-</div></div>
-  <div class="card"><div class="label">Total Blocks (All Time)</div><div class="value danger" id="s-total">-</div></div>
-  <div class="card"><div class="label">Active IPs (STM)</div><div class="value warn" id="s-active">-</div></div>
-  <div class="card"><div class="label">Whitelisted IPs</div><div class="value safe" id="s-white">-</div></div>
+  <div class="card"><div class="label">INCIDENTS_TDY</div><div class="value accent" id="s-today">...</div></div>
+  <div class="card"><div class="label">TOTAL_BLOCKED</div><div class="value danger" id="s-total">...</div></div>
+  <div class="card"><div class="label">ACTIVE_TARGETS</div><div class="value warn" id="s-active">...</div></div>
+  <div class="card"><div class="label">WHITELISTED</div><div class="value safe" id="s-white">...</div></div>
 </div>
 
 <div class="section">
-  <h2>Recent Incidents</h2>
+  <div class="section-title">LOG_ARCHIVE : LAST_50</div>
   <table>
-    <thead><tr><th>Time</th><th>IP</th><th>Threat</th><th>Action</th><th>Reason</th><th>Confidence</th></tr></thead>
-    <tbody id="incidents-body"><tr><td colspan="6" style="text-align:center;color:var(--text-dim)">Loading...</td></tr></tbody>
+    <thead><tr><th>TIMESTAMP</th><th>SRC_IP</th><th>THREAT_SIG</th><th>ACTION</th><th>HEURISTIC_REASON</th><th>CONFIRM_SCORE</th></tr></thead>
+    <tbody id="incidents-body"><tr><td colspan="6" style="text-align:center;">AWAITING_DATA...</td></tr></tbody>
   </table>
 </div>
 
 <div class="section">
-  <h2>Active Monitoring (STM)</h2>
+  <div class="section-title">ACTIVE_MONITOR (STM_CACHE)</div>
   <div class="stm-grid" id="stm-grid">
-    <div class="stm-card"><div class="meta">Loading...</div></div>
+    <div class="stm-card">AWAITING_DATA...</div>
   </div>
 </div>
 
-<div class="footer">Heimdall Lite Micro-SOC &copy; 2026 — Auto-refresh setiap 10 detik</div>
+<div class="footer">
+  TERMINAL_REFRESH_RATE: 10S | HEIMDALL_LITE_V1.0
+</div>
 
 <script>
 async function fetchData() {
@@ -157,10 +152,9 @@ async function fetchData() {
     document.getElementById('s-active').textContent = data.active_ips;
     document.getElementById('s-white').textContent = data.whitelisted;
 
-    // Incidents table
     const tbody = document.getElementById('incidents-body');
     if (data.recent_incidents.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim)">Belum ada insiden hari ini</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">NO_DATA_FOUND</td></tr>';
     } else {
       tbody.innerHTML = data.recent_incidents.map(i => {
         let badge = 'safe';
@@ -168,7 +162,7 @@ async function fetchData() {
         else if (i.action === 'ALERT_ONLY') badge = 'alert';
         return `<tr>
           <td>${i.timestamp}</td>
-          <td><strong>${i.ip}</strong></td>
+          <td style="color:var(--accent); font-weight:bold;">${i.ip}</td>
           <td>${i.threat_type}</td>
           <td><span class="badge ${badge}">${i.action}</span></td>
           <td>${i.reason}</td>
@@ -177,24 +171,23 @@ async function fetchData() {
       }).join('');
     }
 
-    // STM cards
     const stmGrid = document.getElementById('stm-grid');
     const stmEntries = Object.entries(data.stm_data);
     if (stmEntries.length === 0) {
-      stmGrid.innerHTML = '<div class="stm-card"><div class="meta">Tidak ada IP aktif saat ini</div></div>';
+      stmGrid.innerHTML = '<div class="stm-card">NO_ACTIVE_TARGETS</div>';
     } else {
       stmGrid.innerHTML = stmEntries.map(([ip, d]) => `
         <div class="stm-card">
           <div class="ip">${ip}</div>
-          <div class="meta">
-            Attempts: ${d.failed_attempts} | Last: ${d.last_seen} | Service: ${d.service || '-'}
-            ${d.paths_accessed && d.paths_accessed.length ? '<br>Paths: ' + d.paths_accessed.slice(0,5).join(', ') : ''}
-          </div>
+          <div>ATTEMPTS : ${d.failed_attempts}</div>
+          <div>LAST_SEEN: ${d.last_seen}</div>
+          <div>SERVICE  : ${d.service || 'UNKNOWN'}</div>
+          ${d.paths_accessed && d.paths_accessed.length ? '<div>PATHS    : ' + d.paths_accessed.slice(0,5).join(', ') + '</div>' : ''}
         </div>
       `).join('');
     }
   } catch (e) {
-    console.error('Dashboard fetch error:', e);
+    console.error('TRML_ERR:', e);
   }
 }
 
