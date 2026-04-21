@@ -21,6 +21,7 @@ Heimdall-Lite is purpose-built for users who need autonomous security without th
 
 - **Offloaded LLM Inference:** Sends complex log analysis payloads to a remote **Ollama** API endpoint, keeping the local server CPU footprint near 0%.
 - **Deterministic Fallback:** Automatically switches to a strict, regex-based heuristic engine if the LLM endpoint times out or returns malformed data.
+- **Safe Mode 🛡️:** A built-in safety net that turns all destructive actions (like blocking IPs, killing processes, or restoring files) into alert-only mode, so new users can safely evaluate the agent without fear of accidentally disrupting their services. Enabled by default.
 - **Micro-EDR (Active Process Monitoring) 🦠:** Real-time scanning of `/proc` to instantly detect and SIGKILL malicious reverse shells, webshells, or post-exploitation binaries.
 - **Active Deception & Tarpitting 🎭:** Deploys fake SSH (`:2222`) and HTTP (`:8888`) honeypots that intentionally slow down attackers (tarpitting) while secretly logging their payloads and auto-blocking them.
 - **Self-Healing & Auto-Rollback 🔄:** Automatically maintains encrypted backups of critical system files (like `sshd_config`, `nginx.conf`). If File Integrity Monitoring (FIM) detects tampering, Heimdall instantly auto-restores the original file and restarts the affected service.
@@ -182,6 +183,7 @@ You have a complete SOC command center in your Telegram Bot. Send `/help` to see
 - `/health` — Agent and infrastructure status.
 - `/status` — Incident statistics for today.
 - `/rules` — View Global Rules and blocklists.
+- `/safemode` — Toggle safe mode (alert-only mode).
 
 **🔍 Investigation**
 - `/check <IP>` — Complete incident history of an IP.
