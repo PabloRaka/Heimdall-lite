@@ -10,8 +10,6 @@ WorkingDirectory=/opt/Heimdall-lite
 ExecStart=/opt/Heimdall-lite/start.sh
 Restart=always
 RestartSec=10
-StandardOutput=syslog
-StandardError=syslog
 SyslogIdentifier=heimdall-soc
 
 [Install]
