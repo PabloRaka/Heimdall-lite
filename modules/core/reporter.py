@@ -19,6 +19,9 @@ from modules.security.clustering import cluster_detector
 from modules.security.remediation import remediation
 from modules.intel.learning import adaptive_learning
 from modules.infra.multi_server import multi_server
+from modules.security.edr import process_monitor
+from modules.security.honeypot import honeypot_manager
+from modules.security.selfheal import self_healer
 import sqlite3
 import time
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -54,6 +57,11 @@ class TelegramReporter:
             self.app.add_handler(CommandHandler("fblock", self.fblock_command))
             self.app.add_handler(CommandHandler("deploy_canary", self.deploy_canary_command))
             self.app.add_handler(CommandHandler("lang", self.lang_command))
+            self.app.add_handler(CommandHandler("edr", self.edr_command))
+            self.app.add_handler(CommandHandler("edr_log", self.edr_log_command))
+            self.app.add_handler(CommandHandler("honeypot", self.honeypot_command))
+            self.app.add_handler(CommandHandler("backup", self.backup_command))
+            self.app.add_handler(CommandHandler("heal", self.heal_command))
             self.app.add_handler(CommandHandler("help", self.help_command))
             # Inline keyboard callback untuk pemilihan bahasa
             self.app.add_handler(CallbackQueryHandler(self.lang_callback, pattern="^setlang:"))
@@ -285,6 +293,37 @@ class TelegramReporter:
             parse_mode="Markdown"
         )
 
+    async def edr_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler /edr — Status EDR Process Monitor"""
+        if str(update.effective_chat.id) != str(CHAT_ID): return
+        report = process_monitor.format_status_report()
+        await update.message.reply_text(report, parse_mode="Markdown")
+
+    async def edr_log_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler /edr_log — Log proses yang dihentikan"""
+        if str(update.effective_chat.id) != str(CHAT_ID): return
+        report = process_monitor.format_log_report()
+        await update.message.reply_text(report, parse_mode="Markdown")
+
+    async def honeypot_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler /honeypot — Statistik honeypot"""
+        if str(update.effective_chat.id) != str(CHAT_ID): return
+        report = honeypot_manager.format_report()
+        await update.message.reply_text(report, parse_mode="Markdown")
+
+    async def backup_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler /backup — Buat backup snapshot file kritis"""
+        if str(update.effective_chat.id) != str(CHAT_ID): return
+        await update.message.reply_text(i18n.t("heal_backup_title"), parse_mode="Markdown")
+        report = self_healer.format_backup_report()
+        await update.message.reply_text(report, parse_mode="Markdown")
+
+    async def heal_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler /heal — Jalankan self-healing check"""
+        if str(update.effective_chat.id) != str(CHAT_ID): return
+        report = self_healer.format_heal_report()
+        await update.message.reply_text(report, parse_mode="Markdown")
+
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler /help — Daftar semua command"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
@@ -309,7 +348,13 @@ class TelegramReporter:
             f"{i18n.t('help_intelligence')}\n"
             f"{i18n.t('help_learn')}\n"
             f"{i18n.t('help_canary')}\n"
-            f"{i18n.t('help_servers')}"
+            f"{i18n.t('help_servers')}\n\n"
+            f"{i18n.t('help_advanced')}\n"
+            f"{i18n.t('help_edr')}\n"
+            f"{i18n.t('help_edr_log')}\n"
+            f"{i18n.t('help_honeypot')}\n"
+            f"{i18n.t('help_backup')}\n"
+            f"{i18n.t('help_heal')}"
         )
         await update.message.reply_text(msg, parse_mode="Markdown")
 

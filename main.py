@@ -44,6 +44,9 @@ from modules.security.clustering import cluster_detector
 from modules.security.canary import canary
 from modules.intel.learning import adaptive_learning
 from modules.infra.multi_server import multi_server
+from modules.security.edr import process_monitor
+from modules.security.honeypot import honeypot_manager
+from modules.security.selfheal import self_healer
 
 def process_pipeline(event: dict):
     """
@@ -210,6 +213,14 @@ def auto_scan_scheduler():
                 print("[AUTO-SCAN] ⚠️ Masalah terdeteksi, alert dikirim ke Telegram.")
             else:
                 print("[AUTO-SCAN] ✅ Semua aman, tidak ada alert.")
+
+            # Self-Healing check: cek apakah file kritis diubah dan auto-restore
+            heal_actions = self_healer.check_and_heal()
+            if heal_actions:
+                heal_report = self_healer.format_heal_report()
+                reporter.send_message(heal_report)
+                print(f"[AUTO-SCAN] 🔄 Self-Healing: {len(heal_actions)} tindakan dilakukan.")
+
         except Exception as e:
             print(f"[AUTO-SCAN] ❌ Error: {e}")
         
@@ -282,10 +293,28 @@ def start_micro_soc():
     # 7. Mulai Canary Monitoring (jika sudah di-deploy)
     canary.start_monitoring(alert_callback=canary_alert_handler)
     
+    # 8. Mulai EDR Process Monitor di Background
+    process_monitor.start()
+    print("[INFO] 🦠 EDR Process Monitor aktif.")
+    
+    # 9. Mulai Honeypot Servers di Background
+    try:
+        honeypot_manager.start_all()
+        print("[INFO] 🎭 Honeypot & Tarpitting aktif (port 2222, 8888).")
+    except Exception as e:
+        print(f"[WARNING] Honeypot gagal dimulai: {e}")
+    
+    # 10. Buat backup snapshot awal untuk Self-Healing (jika belum ada) 
+    try:
+        self_healer.create_backup_snapshot()
+        print("[INFO] 🔄 Self-Healing backup snapshot siap.")
+    except Exception as e:
+        print(f"[WARNING] Self-Healing backup gagal: {e}")
+    
     print("\n[INFO] Micro-SOC aktif dan siap melindungi server.")
     print("[INFO] Tekan Ctrl+C untuk menghentikan.\n")
     
-    # 8. Memulai Monitoring Log (Blocking Loop)
+    # 11. Memulai Monitoring Log (Blocking Loop)
     sensor.start()
 
 if __name__ == "__main__":

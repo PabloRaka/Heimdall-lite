@@ -13,3 +13,5 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 watchdog==6.0.0
 PyYAML==6.0.3
+psutil>=5.9.0
+cryptography>=42.0.0

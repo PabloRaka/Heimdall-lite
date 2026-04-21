@@ -71,6 +71,30 @@ def init_db():
     INSERT OR IGNORE INTO settings (key, value) VALUES ('language', 'en')
     """)
 
+    # Tabel 6: honeypot_logs - Log koneksi ke port honeypot
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS honeypot_logs (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip        TEXT NOT NULL,
+        port      INTEGER,
+        service   TEXT,
+        payload   TEXT,
+        timestamp TEXT NOT NULL
+    )
+    """)
+
+    # Tabel 7: healing_log - Log aksi self-healing / auto-rollback
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS healing_log (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        filepath     TEXT NOT NULL,
+        action       TEXT NOT NULL,
+        old_hash     TEXT,
+        new_hash     TEXT,
+        timestamp    TEXT NOT NULL
+    )
+    """)
+
     conn.commit()
     conn.close()
     

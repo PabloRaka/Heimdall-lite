@@ -21,6 +21,9 @@ Heimdall-Lite is purpose-built for users who need autonomous security without th
 
 - **Offloaded LLM Inference:** Sends complex log analysis payloads to a remote **Ollama** API endpoint, keeping the local server CPU footprint near 0%.
 - **Deterministic Fallback:** Automatically switches to a strict, regex-based heuristic engine if the LLM endpoint times out or returns malformed data.
+- **Micro-EDR (Active Process Monitoring) 🦠:** Real-time scanning of `/proc` to instantly detect and SIGKILL malicious reverse shells, webshells, or post-exploitation binaries.
+- **Active Deception & Tarpitting 🎭:** Deploys fake SSH (`:2222`) and HTTP (`:8888`) honeypots that intentionally slow down attackers (tarpitting) while secretly logging their payloads and auto-blocking them.
+- **Self-Healing & Auto-Rollback 🔄:** Automatically maintains encrypted backups of critical system files (like `sshd_config`, `nginx.conf`). If File Integrity Monitoring (FIM) detects tampering, Heimdall instantly auto-restores the original file and restarts the affected service.
 - **3-Layer Memory Architecture:**
   - **Short-Term Memory (STM):** Tracks aggressive activities over the last 30-60 minutes.
   - **Long-Term Memory (LTM):** SQLite database recording incident history, false positives, and whitelists.
@@ -34,7 +37,7 @@ Heimdall-Lite is purpose-built for users who need autonomous security without th
 - **Real-time Web Dashboard 📈:** Embedded, dependency-free live web dashboard (accessible via port `8443`) for monitoring SOC activities.
 - **Forensic Timelines 🕵️:** Assembles full attack chronologies using STM, LTM, and Threat Intel.
 - **Multi-Server Federated Blocking 🌐:** One agent can manage blocklists across multiple remote servers via SSH, ensuring that an attack on one server is instantly mitigated across the infrastructure.
-- **Layer-7 Vulnerability Scanner:** Built-in automated scanner covering FIM (File Integrity Monitoring), Firewall status, SSH audit, outdated packages, and failed services.
+- **Layer-7 Vulnerability Scanner:** Built-in automated scanner covering FIM, Firewall status, SSH audit, outdated packages, and failed services.
 
 ## 👁️ Heimdall-Lite in Action
 
@@ -98,7 +101,10 @@ modules/
 │   ├── scanner.py           # 7-Layer Host Vulnerability Scanner
 │   ├── canary.py            # Intrusion Detection via Bait Files
 │   ├── clustering.py        # Coordinated Botnet Detection
-│   └── remediation.py       # Auto-Fix security misconfigurations
+│   ├── remediation.py       # Auto-Fix security misconfigurations
+│   ├── edr.py               # Active Process Monitoring & Auto-Kill
+│   ├── honeypot.py          # Fake SSH/HTTP services with Tarpitting
+│   └── selfheal.py          # Encrypted Backups & Auto-Rollback
 │
 ├── intel/                   # 🔍 Intelligence & Analysis
 │   ├── threat_intel.py      # Reputational & GeoIP logic
@@ -194,6 +200,13 @@ You have a complete SOC command center in your Telegram Bot. Send `/help` to see
 - `/learn` — Trigger the rule generation pipeline manually to compile new GM blocks.
 - `/deploy_canary` — Plant bait files to trap intruders.
 - `/servers` — Perform a health check on all federated servers.
+
+**🔬 Advanced Defense**
+- `/edr` — View EDR status and total malicious processes mitigated.
+- `/edr_log` — View detailed logs of recently killed processes.
+- `/honeypot` — View honeypot statistics and trapped attackers.
+- `/backup` — Create an encrypted backup snapshot of critical files.
+- `/heal` — Run the self-healing integrity check manually.
 
 ---
 *Heimdall-Lite provides automated, multi-layered security validation to ensure traffic anomalies are verified and mitigated before reaching critical services.*
