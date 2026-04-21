@@ -2,6 +2,7 @@ import time
 import logging
 from collections import defaultdict
 from modules.core.memory import STM, LTM
+from modules.core.i18n import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -102,19 +103,20 @@ class IPCluster:
         result = cls.detect_botnet()
 
         if not result["is_botnet"]:
-            return "🟢 *Botnet Detection*: Tidak ada serangan terkoordinasi terdeteksi."
+            return i18n.t("botnet_clean")
 
-        report = [f"🤖 *BOTNET / COORDINATED ATTACK DETECTED*\n"]
-        report.append(f"Total IP terlibat: {result['cluster_size']}")
-        report.append(f"IPs: {', '.join([f'`{ip}`' for ip in result['botnet_ips'][:15]])}")
+        report = [f"{i18n.t('botnet_title')}\n"]
+        report.append(i18n.t("botnet_total_ips", count=result['cluster_size']))
+        report.append(i18n.t("botnet_ips", ips=', '.join([f'`{ip}`' for ip in result['botnet_ips'][:15]])))
         report.append("")
 
         for i, cluster in enumerate(result["clusters"], 1):
             if "path" in cluster:
-                report.append(f"*Cluster {i}* — Path: `{cluster['path']}`")
+                report.append(i18n.t("botnet_cluster_path", num=i, path=cluster['path']))
             elif "service" in cluster:
-                report.append(f"*Cluster {i}* — Service: `{cluster['service']}`")
-            report.append(f"  IPs ({cluster['count']}): {', '.join([f'`{ip}`' for ip in cluster['ips'][:10]])}")
+                report.append(i18n.t("botnet_cluster_svc", num=i, service=cluster['service']))
+            report.append(i18n.t("botnet_cluster_ips", count=cluster['count'],
+                                  ips=', '.join([f'`{ip}`' for ip in cluster['ips'][:10]])))
 
         return "\n".join(report)
 

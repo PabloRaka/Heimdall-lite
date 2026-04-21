@@ -3,13 +3,14 @@ import requests
 import asyncio
 from threading import Thread
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 from pathlib import Path
 
 from modules.core.executor import executor
 from modules.core.memory import LTM, GM
 from modules.core.memory import DB_PATH
+from modules.core.i18n import i18n, SUPPORTED_LANGUAGES
 from modules.security.scanner import scanner
 from modules.intel.threat_intel import threat_intel
 from modules.intel.forensic import forensic
@@ -52,7 +53,10 @@ class TelegramReporter:
             self.app.add_handler(CommandHandler("servers", self.servers_command))
             self.app.add_handler(CommandHandler("fblock", self.fblock_command))
             self.app.add_handler(CommandHandler("deploy_canary", self.deploy_canary_command))
+            self.app.add_handler(CommandHandler("lang", self.lang_command))
             self.app.add_handler(CommandHandler("help", self.help_command))
+            # Inline keyboard callback untuk pemilihan bahasa
+            self.app.add_handler(CallbackQueryHandler(self.lang_callback, pattern="^setlang:"))
         else:
             print("[WARNING] TELEGRAM_BOT_TOKEN tidak ditemukan. Reporter berjalan di mode Simulasi.")
 
@@ -64,9 +68,9 @@ class TelegramReporter:
             return
 
         status_msg = (
-            "🟢 *Micro-SOC Health Status*\n"
-            "Status: ACTIVE\n"
-            "Semua sistem inti (Sensor, Memory, Fallback) beroperasi."
+            f"{i18n.t('health_title')}\n"
+            f"{i18n.t('health_status')}\n"
+            f"{i18n.t('health_body')}"
         )
         await update.message.reply_text(status_msg, parse_mode="Markdown")
         print("[REPORTER] Command /health berhasil direspons.")
@@ -74,25 +78,25 @@ class TelegramReporter:
     async def block_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_chat.id) != str(CHAT_ID): return
         if not context.args:
-            await update.message.reply_text("Format: `/block <IP>`", parse_mode="Markdown")
+            await update.message.reply_text(i18n.t("block_format"), parse_mode="Markdown")
             return
         ip = context.args[0]
         executor.block_cloudflare(ip, "Manual Block via Telegram")
         executor.block_ufw(ip)
         LTM.add_incident(ip, "MANUAL", "BLOCK_CF_UFW", "Manual block via Telegram", 1.0)
-        await update.message.reply_text(f"✅ IP `{ip}` telah diblokir.", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("block_success", ip=ip), parse_mode="Markdown")
 
     async def allow_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_chat.id) != str(CHAT_ID): return
         if not context.args:
-            await update.message.reply_text("Format: `/allow <IP>`", parse_mode="Markdown")
+            await update.message.reply_text(i18n.t("allow_format"), parse_mode="Markdown")
             return
         ip = context.args[0]
         executor.unblock_cloudflare(ip)
         executor.unblock_ufw(ip)
         LTM.add_whitelist(ip, "Telegram Whitelist", "admin")
         LTM.add_false_positive(ip, "Unblocked via Telegram")
-        await update.message.reply_text(f"✅ IP `{ip}` telah dibebaskan dan masuk ke whitelist.", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("allow_success", ip=ip), parse_mode="Markdown")
 
     async def check_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_chat.id) != str(CHAT_ID): return
@@ -102,11 +106,12 @@ class TelegramReporter:
         ip = context.args[0]
         history = LTM.get_incident_history(ip)
         is_white = LTM.is_whitelisted(ip)
-        msg = f"🔍 *Check IP:* `{ip}`\nWhitelist: {'✅ Ya' if is_white else '❌ Tidak'}\n"
+        wl_val = i18n.t("check_whitelist_yes") if is_white else i18n.t("check_whitelist_no")
+        msg = f"{i18n.t('check_title', ip=ip)}\n{i18n.t('check_whitelist')}: {wl_val}\n"
         if not history:
-            msg += "Riwayat: Bersih."
+            msg += i18n.t("check_history_clean")
         else:
-            msg += f"Riwayat ({len(history)} insiden terakhir):\n"
+            msg += f"{i18n.t('check_history_label', count=len(history))}\n"
             for h in history:
                 msg += f"- {h['timestamp']} | {h['action']} | {h['reason']}\n"
         await update.message.reply_text(msg, parse_mode="Markdown")
@@ -120,14 +125,17 @@ class TelegramReporter:
         result = cursor.fetchone()
         count = result[0] if result else 0
         conn.close()
-        msg = f"📊 *Status Hari Ini ({today})*\nTotal Blokir Baru: {count}"
+        msg = (
+            f"{i18n.t('status_title', date=today)}\n"
+            f"{i18n.t('status_blocks', count=count)}"
+        )
         await update.message.reply_text(msg, parse_mode="Markdown")
 
     async def scan_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_chat.id) != str(CHAT_ID): return
         
         # Kirim status loading
-        await update.message.reply_text("🔄 *Memulai Eksekusi Vulnerability Scanner...*", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("scan_starting"), parse_mode="Markdown")
         
         # Lakukan pemindaian
         report = scanner.scan_all()
@@ -140,17 +148,21 @@ class TelegramReporter:
         rules = GM._get_rules()
         paths = ", ".join(rules.get('blacklist_paths', []))[:100] + "..."
         users = ", ".join(rules.get('forbidden_usernames', []))
-        msg = f"📋 *Global Rules*\n*Blacklist Paths:* {paths}\n*Forbidden Users:* {users}"
+        msg = (
+            f"{i18n.t('rules_title')}\n"
+            f"{i18n.t('rules_blacklist_paths', paths=paths)}\n"
+            f"{i18n.t('rules_forbidden_users', users=users)}"
+        )
         await update.message.reply_text(msg, parse_mode="Markdown")
 
     async def intel_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler /intel <IP> — Cek reputasi IP via AbuseIPDB + GeoIP"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
         if not context.args:
-            await update.message.reply_text("Format: `/intel <IP>`", parse_mode="Markdown")
+            await update.message.reply_text(i18n.t("intel_format"), parse_mode="Markdown")
             return
         ip = context.args[0]
-        await update.message.reply_text(f"🔍 Mengecek intelijen untuk `{ip}`...", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("intel_checking", ip=ip), parse_mode="Markdown")
         report = threat_intel.format_intel_report(ip)
         await update.message.reply_text(report, parse_mode="Markdown")
 
@@ -158,17 +170,17 @@ class TelegramReporter:
         """Handler /forensic <IP> — Generate forensic timeline untuk IP"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
         if not context.args:
-            await update.message.reply_text("Format: `/forensic <IP>`", parse_mode="Markdown")
+            await update.message.reply_text(i18n.t("forensic_format"), parse_mode="Markdown")
             return
         ip = context.args[0]
-        await update.message.reply_text(f"🔎 Generating forensic timeline untuk `{ip}`...", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("forensic_checking", ip=ip), parse_mode="Markdown")
         report = forensic.generate(ip)
         await update.message.reply_text(report, parse_mode="Markdown")
 
     async def remediate_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler /remediate — Auto-fix celah keamanan"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
-        await update.message.reply_text("🔧 *Menjalankan Auto-Remediation...*", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("remediate_starting"), parse_mode="Markdown")
         report = remediation.remediate_all()
         await update.message.reply_text(report, parse_mode="Markdown")
 
@@ -181,7 +193,7 @@ class TelegramReporter:
     async def learn_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler /learn — Jalankan adaptive learning dari insiden"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
-        await update.message.reply_text("🧠 *Menganalisis pattern serangan...*", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("learn_analyzing"), parse_mode="Markdown")
         report = adaptive_learning.format_report()
         await update.message.reply_text(report, parse_mode="Markdown")
 
@@ -195,49 +207,109 @@ class TelegramReporter:
         """Handler /fblock <IP> — Federated block di semua server"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
         if not context.args:
-            await update.message.reply_text("Format: `/fblock <IP>`", parse_mode="Markdown")
+            await update.message.reply_text(i18n.t("fblock_format"), parse_mode="Markdown")
             return
         ip = context.args[0]
-        await update.message.reply_text(f"🌐 *Memblokir `{ip}` di semua server...*", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("fblock_starting", ip=ip), parse_mode="Markdown")
         report = multi_server.format_block_report(ip)
         await update.message.reply_text(report, parse_mode="Markdown")
 
     async def deploy_canary_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler /deploy_canary — Tanam file jebakan di server"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
-        await update.message.reply_text("🍯 *Menanam file-file canary...*", parse_mode="Markdown")
+        await update.message.reply_text(i18n.t("canary_deploying"), parse_mode="Markdown")
         deployed = canary.deploy_canaries()
         if deployed:
             files = "\n".join([f"  • `{f}`" for f in deployed])
-            msg = f"🍯 *Canary Deployed!*\n{len(deployed)} file ditanam:\n{files}"
+            msg = i18n.t("canary_deployed", count=len(deployed), files=files)
         else:
-            msg = "⚠️ Tidak ada file canary yang bisa ditanam (direktori tidak ada atau file sudah ada)."
+            msg = i18n.t("canary_none")
         await update.message.reply_text(msg, parse_mode="Markdown")
+
+    async def lang_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler /lang — Tampilkan pilihan bahasa dengan inline keyboard"""
+        if str(update.effective_chat.id) != str(CHAT_ID): return
+
+        # Buat inline keyboard dengan satu baris per bahasa
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"{meta['label']} {'✓' if i18n.is_current(code) else ''}".strip(),
+                    callback_data=f"setlang:{code}"
+                )
+            ]
+            for code, meta in SUPPORTED_LANGUAGES.items()
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            i18n.t("lang_select_prompt"),
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+
+    async def lang_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Callback handler saat user mengklik tombol pilihan bahasa"""
+        query = update.callback_query
+        await query.answer()  # Hapus loading state di Telegram
+
+        if str(query.message.chat.id) != str(CHAT_ID):
+            return
+
+        # Ekstrak kode bahasa dari callback data (format: "setlang:xx")
+        lang_code = query.data.split(":", 1)[-1]
+
+        if i18n.is_current(lang_code):
+            # Bahasa sudah aktif
+            msg = i18n.t("lang_already_set")
+        else:
+            success = i18n.set_language(lang_code)
+            if success:
+                msg = i18n.t("lang_changed")
+            else:
+                msg = "❌ Language not supported."
+
+        # Update pesan asli dengan tombol yang sudah di-refresh (tanda centang berpindah)
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f"{meta['label']} {'✓' if i18n.is_current(code) else ''}".strip(),
+                    callback_data=f"setlang:{code}"
+                )
+            ]
+            for code, meta in SUPPORTED_LANGUAGES.items()
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text=f"{i18n.t('lang_select_prompt')}\n\n{msg}",
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler /help — Daftar semua command"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
         msg = (
-            "🛡️ *Heimdall Micro-SOC Commands*\n\n"
-            "📊 *Monitoring*\n"
-            "/health — Cek status agen\n"
-            "/status — Statistik insiden hari ini\n"
-            "/rules — Lihat Global Rules\n\n"
-            "🔍 *Investigation*\n"
-            "/check <IP> — Riwayat insiden IP\n"
-            "/intel <IP> — Threat intelligence IP\n"
-            "/forensic <IP> — Forensic timeline IP\n"
-            "/botnet — Deteksi serangan botnet\n\n"
-            "🛡️ *Defense*\n"
-            "/block <IP> — Blokir IP\n"
-            "/allow <IP> — Unblock IP\n"
-            "/fblock <IP> — Blokir IP di semua server\n"
-            "/scan — Vulnerability scan\n"
-            "/remediate — Auto-fix celah keamanan\n\n"
-            "🧠 *Intelligence*\n"
-            "/learn — Adaptive learning dari insiden\n"
-            "/deploy\\_canary — Tanam file jebakan\n"
-            "/servers — Health check semua server"
+            f"{i18n.t('help_title')}\n\n"
+            f"{i18n.t('help_monitoring')}\n"
+            f"{i18n.t('help_health')}\n"
+            f"{i18n.t('help_status')}\n"
+            f"{i18n.t('help_rules')}\n"
+            f"{i18n.t('help_lang')}\n\n"
+            f"{i18n.t('help_investigation')}\n"
+            f"{i18n.t('help_check')}\n"
+            f"{i18n.t('help_intel')}\n"
+            f"{i18n.t('help_forensic')}\n"
+            f"{i18n.t('help_botnet')}\n\n"
+            f"{i18n.t('help_defense')}\n"
+            f"{i18n.t('help_block')}\n"
+            f"{i18n.t('help_allow')}\n"
+            f"{i18n.t('help_fblock')}\n"
+            f"{i18n.t('help_scan')}\n"
+            f"{i18n.t('help_remediate')}\n\n"
+            f"{i18n.t('help_intelligence')}\n"
+            f"{i18n.t('help_learn')}\n"
+            f"{i18n.t('help_canary')}\n"
+            f"{i18n.t('help_servers')}"
         )
         await update.message.reply_text(msg, parse_mode="Markdown")
 

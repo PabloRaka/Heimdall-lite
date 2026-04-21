@@ -4,6 +4,7 @@ import logging
 from collections import Counter
 from pathlib import Path
 from modules.core.memory import LTM, GM, DB_PATH, GM_PATH
+from modules.core.i18n import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -121,25 +122,25 @@ class AdaptiveLearning:
         """Format laporan learning untuk Telegram"""
         result = cls.learn_from_incidents()
 
-        report = ["🧠 *ADAPTIVE LEARNING REPORT*\n"]
-        report.append(f"Insiden dianalisis: {result['total_analyzed']}")
-        report.append(f"IP baru dipelajari: {result['learned_ips']}")
-        report.append(f"Path baru dipelajari: {result['learned_paths']}")
+        report = [f"{i18n.t('learn_title')}\n"]
+        report.append(i18n.t("learn_total_analyzed", count=result['total_analyzed']))
+        report.append(i18n.t("learn_ips_learned", count=result['learned_ips']))
+        report.append(i18n.t("learn_paths_learned", count=result['learned_paths']))
 
         if result.get("repeat_offender_ips"):
             ips = ", ".join([f"`{ip}`" for ip in result["repeat_offender_ips"][:10]])
-            report.append(f"\n*Repeat Offender IPs:* {ips}")
+            report.append(f"\n{i18n.t('learn_repeat_offenders', ips=ips)}")
 
         if result.get("frequent_paths"):
             paths = ", ".join([f"`{p}`" for p in result["frequent_paths"][:10]])
-            report.append(f"*Frequent Attack Paths:* {paths}")
+            report.append(i18n.t("learn_freq_paths", paths=paths))
 
         if result["learned_ips"] == 0 and result["learned_paths"] == 0:
-            report.append("\nℹ️ Tidak ada rule baru yang perlu ditambahkan. GM sudah up-to-date.")
+            report.append(f"\n{i18n.t('learn_no_new_rules')}")
         else:
-            report.append(f"\n✅ Global Memory telah diperbarui secara otomatis.")
+            report.append(f"\n{i18n.t('learn_gm_updated')}")
 
-        report.append(f"\n🕐 _{time.strftime('%Y-%m-%d %H:%M:%S')}_")
+        report.append(f"\n{i18n.t('learn_timestamp', timestamp=time.strftime('%Y-%m-%d %H:%M:%S'))}")
         return "\n".join(report)
 
 

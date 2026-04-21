@@ -27,6 +27,7 @@ OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
 from modules.core.sanitizer import build_prompt
 from modules.core.memory import STM, LTM
 from modules.core.fallback import rule_based_fallback
+from modules.core.i18n import i18n
 
 class Brain:
     """
@@ -43,13 +44,20 @@ class Brain:
         
         if OLLAMA_API_KEY:
             headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
+
+        # Injeksi bahasa aktif ke system prompt agar 'reason' dari AI mengikuti preferensi user
+        lang_name = i18n.get_language_name()
             
         payload = {
             "model": OLLAMA_MODEL,
             "messages": [
                 {
                     "role": "system", 
-                    "content": "You are a network security analyzer. Always output valid JSON only, without markdown formatting or preamble."
+                    "content": (
+                        f"You are a network security analyzer. "
+                        f"Always respond in {lang_name}. "
+                        f"Always output valid JSON only, without markdown formatting or preamble."
+                    )
                 },
                 {"role": "user", "content": prompt}
             ],

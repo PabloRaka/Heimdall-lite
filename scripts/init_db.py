@@ -58,6 +58,19 @@ def init_db():
     )
     """)
 
+    # Tabel 5: settings - Konfigurasi global (termasuk bahasa laporan)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+        key     TEXT PRIMARY KEY,
+        value   TEXT NOT NULL
+    )
+    """)
+
+    # Isi default language: English
+    cursor.execute("""
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('language', 'en')
+    """)
+
     conn.commit()
     conn.close()
     

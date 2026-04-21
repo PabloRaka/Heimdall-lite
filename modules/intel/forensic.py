@@ -1,6 +1,7 @@
 import time
 import logging
 from modules.core.memory import LTM, STM
+from modules.core.i18n import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -20,29 +21,29 @@ class ForensicTimeline:
         """
         logger.info(f"[FORENSIC] Generating timeline for {ip}")
 
-        report = [f"🕵️ *FORENSIC TIMELINE: `{ip}`*\n"]
+        report = [f"{i18n.t('forensic_title', ip=ip)}\n"]
 
         # ── Ambil data dari STM (aktivitas real-time) ──
         stm_data = STM.get(ip)
         if stm_data:
-            report.append("📋 *Aktivitas Real-Time (STM):*")
-            report.append(f"  Failed Attempts: {stm_data.get('failed_attempts', 0)}")
-            report.append(f"  Last Seen: {stm_data.get('last_seen', '-')}")
-            report.append(f"  Service: {stm_data.get('service', '-')}")
+            report.append(i18n.t("forensic_stm_title"))
+            report.append(f"{i18n.t('forensic_failed_attempts')}: {stm_data.get('failed_attempts', 0)}")
+            report.append(f"{i18n.t('forensic_last_seen')}: {stm_data.get('last_seen', '-')}")
+            report.append(f"{i18n.t('forensic_service')}: {stm_data.get('service', '-')}")
 
             paths = stm_data.get("paths_accessed", [])
             if paths:
                 paths_str = ", ".join([f"`{p}`" for p in paths[:10]])
-                report.append(f"  Paths Accessed: {paths_str}")
+                report.append(f"{i18n.t('forensic_paths')}: {paths_str}")
         else:
-            report.append("📋 *Aktivitas Real-Time (STM):* Tidak ada data aktif.")
+            report.append(i18n.t("forensic_stm_empty"))
 
         report.append("")
 
         # ── Ambil data dari LTM (riwayat insiden historis) ──
         incidents = LTM.get_incident_history(ip, limit=20)
         if incidents:
-            report.append(f"📜 *Riwayat Insiden ({len(incidents)} record):*")
+            report.append(i18n.t("forensic_history_title", count=len(incidents)))
             for i, inc in enumerate(incidents, 1):
                 ts = inc.get("timestamp", "?")
                 action = inc.get("action", "?")
@@ -51,24 +52,26 @@ class ForensicTimeline:
                 threat = inc.get("threat_type", "?")
                 report.append(
                     f"  {i}. `{ts}` — {threat} → {action}\n"
-                    f"      Reason: {reason}\n"
-                    f"      Confidence: {confidence}"
+                    f"{i18n.t('forensic_reason')}: {reason}\n"
+                    f"{i18n.t('forensic_confidence')}: {confidence}"
                 )
         else:
-            report.append("📜 *Riwayat Insiden:* Bersih, tidak ada catatan.")
+            report.append(i18n.t("forensic_history_empty"))
 
         report.append("")
 
         # ── Status Whitelist & False Positive ──
         is_whitelisted = LTM.is_whitelisted(ip)
         is_fp = LTM.is_false_positive(ip)
-        report.append("📌 *Status:*")
-        report.append(f"  Whitelist: {'✅ Ya' if is_whitelisted else '❌ Tidak'}")
-        report.append(f"  False Positive: {'✅ Ya' if is_fp else '❌ Tidak'}")
+        report.append(i18n.t("forensic_status_title"))
+        wl_val = i18n.t("forensic_whitelist_yes") if is_whitelisted else i18n.t("forensic_whitelist_no")
+        fp_val = i18n.t("forensic_whitelist_yes") if is_fp else i18n.t("forensic_whitelist_no")
+        report.append(f"{i18n.t('forensic_whitelist')}: {wl_val}")
+        report.append(f"{i18n.t('forensic_fp')}: {fp_val}")
 
         report.append("")
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        report.append(f"🕐 _Report generated: {timestamp}_")
+        report.append(i18n.t("forensic_generated", timestamp=timestamp))
 
         return "\n".join(report)
 

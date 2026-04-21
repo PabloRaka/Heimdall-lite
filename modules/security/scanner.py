@@ -4,6 +4,7 @@ import json
 import time
 import logging
 from pathlib import Path
+from modules.core.i18n import i18n
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -66,9 +67,9 @@ class ServerScanner:
         report = []
         out, err = cls._run_cmd("sudo ufw status")
         if "inactive" in out.lower() or "not found" in err.lower():
-            report.append("🔴 *Firewall (UFW)*: Tidak Aktif atau Tidak Ditemukan! Server terekspos langsung ke dunia luar tanpa filter.")
+            report.append(i18n.t("scan_fw_inactive"))
         else:
-            report.append("🟢 *Firewall (UFW)*: Aktif")
+            report.append(i18n.t("scan_fw_active"))
         return report
 
     # ─────────────────────────────────────────────
@@ -83,17 +84,17 @@ class ServerScanner:
             lines = out.split('\n')
             for line in lines:
                 if 'permitrootlogin yes' in line.lower():
-                    ssh_issues.append("Root Login Diizinkan (Meningkatkan risiko takeover penuh)")
+                    ssh_issues.append(i18n.t("scan_ssh_root_login"))
                 if 'passwordauthentication yes' in line.lower():
-                    ssh_issues.append("Password Authentication Aktif (Sangat rentan botnet SSH Brute-Force)")
+                    ssh_issues.append(i18n.t("scan_ssh_password_auth"))
         
         if ssh_issues:
-            report.append("🔴 *Celah SSH Security*:\\n- " + "\\n- ".join(ssh_issues))
-            report.append("ℹ️ _[Solusi]_: Edit `/etc/ssh/sshd_config` menjadi `PermitRootLogin no` dan `PasswordAuthentication no` (gunakan SSH Key).")
+            report.append(i18n.t("scan_ssh_issues_title", issues="\\n- ".join(ssh_issues)))
+            report.append(i18n.t("scan_ssh_fix_hint"))
         elif out:
-            report.append("🟢 *SSH Security*: Konfigurasi Aman (Root/Password tertutup)")
+            report.append(i18n.t("scan_ssh_ok"))
         else:
-            report.append("🟡 *SSH Security*: Gagal membaca status konfigurasi lokal SSHD.")
+            report.append(i18n.t("scan_ssh_fail_read"))
         return report
 
     # ─────────────────────────────────────────────
@@ -112,8 +113,9 @@ class ServerScanner:
                     if port and port not in ports:
                         ports.append(port)
             if ports:
-                report.append(f"🟡 *Exposed Public Ports*: `{', '.join(ports[:15])}` {'...' if len(ports)>15 else ''}")
-                report.append("ℹ️ _[Peringatan]_: Pastikan port-port di atas memang disengaja untuk dibuka untuk publik.")
+                port_str = ', '.join(ports[:15]) + (' ...' if len(ports) > 15 else '')
+                report.append(i18n.t("scan_ports_label", ports=port_str))
+                report.append(i18n.t("scan_ports_hint"))
         return report
 
     # ─────────────────────────────────────────────
@@ -130,9 +132,9 @@ class ServerScanner:
                     failed_count += 1
         
         if failed_count > 0:
-            report.append(f"🔴 *Failed System Services*: Ada {failed_count} service krusial gagal memuat.")
+            report.append(i18n.t("scan_services_fail", count=failed_count))
         else:
-            report.append("🟢 *System Services*: Semua Normal berjalan mulus.")
+            report.append(i18n.t("scan_services_ok"))
         return report
 
     # ─────────────────────────────────────────────
@@ -197,14 +199,14 @@ class ServerScanner:
         cls._save_fim_snapshot(new_snapshot)
 
         if not old_snapshot:
-            report.append("🟡 *File Integrity (FIM)*: Snapshot awal berhasil dibuat. Pemeriksaan perubahan dimulai dari scan berikutnya.")
+            report.append(i18n.t("scan_fim_snapshot_created"))
         elif changed_files:
             file_list = "\\n- ".join(changed_files)
-            report.append(f"🔴 *File Integrity (FIM)*: Terdeteksi perubahan pada file kritis!\\n- {file_list}")
-            report.append("ℹ️ _[Peringatan]_: Pastikan perubahan ini disengaja. Bisa jadi indikasi backdoor!")
+            report.append(i18n.t("scan_fim_changed", files=file_list))
+            report.append(i18n.t("scan_fim_changed_hint"))
         else:
             monitored = len(new_snapshot)
-            report.append(f"🟢 *File Integrity (FIM)*: {monitored} file kritis aman, tidak ada perubahan terdeteksi.")
+            report.append(i18n.t("scan_fim_ok", count=monitored))
 
         return report
 
@@ -240,15 +242,15 @@ class ServerScanner:
                     key_details.append(f"`{keyfile}` ({count} key)")
 
         if total_keys == 0:
-            report.append("🟢 *SSH Keys Audit*: Tidak ditemukan authorized keys terdaftar.")
+            report.append(i18n.t("scan_keys_none"))
         elif total_keys <= 3:
             details = ", ".join(key_details)
-            report.append(f"🟡 *SSH Keys Audit*: Ditemukan {total_keys} key — {details}")
-            report.append("ℹ️ _[Info]_: Pastikan semua key tersebut milik admin yang sah.")
+            report.append(i18n.t("scan_keys_ok", count=total_keys, details=details))
+            report.append(i18n.t("scan_keys_ok_hint"))
         else:
             details = ", ".join(key_details)
-            report.append(f"🔴 *SSH Keys Audit*: Ditemukan {total_keys} key! — {details}")
-            report.append("ℹ️ _[Peringatan]_: Jumlah key terlalu banyak! Bisa jadi ada key asing yang ditanam attacker.")
+            report.append(i18n.t("scan_keys_warn", count=total_keys, details=details))
+            report.append(i18n.t("scan_keys_warn_hint"))
 
         return report
 
@@ -270,10 +272,10 @@ class ServerScanner:
                 sec_count = 0
 
             if sec_count > 0:
-                report.append(f"🔴 *Security Patches*: Ada {sec_count} paket keamanan yang belum diperbarui!")
-                report.append("ℹ️ _[Solusi]_: Jalankan `sudo apt-get update && sudo apt-get upgrade` segera.")
+                report.append(i18n.t("scan_patches_warn", count=sec_count))
+                report.append(i18n.t("scan_patches_fix"))
             else:
-                report.append("🟢 *Security Patches*: Semua paket keamanan sudah terbaru.")
+                report.append(i18n.t("scan_patches_ok"))
         else:
             # Coba yum/dnf untuk RHEL/CentOS
             out, err = cls._run_cmd("which yum")
@@ -285,11 +287,11 @@ class ServerScanner:
                     sec_count = 0
                 
                 if sec_count > 0:
-                    report.append(f"🔴 *Security Patches*: Ada {sec_count} paket keamanan yang belum diperbarui!")
+                    report.append(i18n.t("scan_patches_warn", count=sec_count))
                 else:
-                    report.append("🟢 *Security Patches*: Semua paket keamanan sudah terbaru.")
+                    report.append(i18n.t("scan_patches_ok"))
             else:
-                report.append("🟡 *Security Patches*: Tidak dapat mendeteksi package manager (apt/yum).")
+                report.append(i18n.t("scan_patches_no_pm"))
 
         return report
 
@@ -301,7 +303,7 @@ class ServerScanner:
         """Menjalankan seluruh modul pemindaian dan merakit laporan akhir"""
         logging.info("[SCANNER] Memulai full vulnerability scan...")
         
-        report = ["🛡️ *HEIMDALL VULNERABILITY SCANNER* 🛡️\n"]
+        report = [f"{i18n.t('scan_title')}\n"]
 
         report.extend(cls._check_firewall())
         report.extend(cls._check_ssh())
@@ -312,7 +314,7 @@ class ServerScanner:
         report.extend(cls._check_outdated_packages())
 
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        report.append(f"\n🕐 _Scan selesai: {timestamp}_")
+        report.append(f"\n{i18n.t('scan_done', timestamp=timestamp)}")
 
         logging.info("[SCANNER] Full scan selesai.")
         return "\n\n".join(report)
@@ -342,11 +344,11 @@ class ServerScanner:
             return ""
 
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        report = ["⚠️ *HEIMDALL AUTO-SCAN ALERT* ⚠️\n"]
-        report.append(f"Terdeteksi {len(issues)} masalah keamanan:\n")
+        report = [f"{i18n.t('scan_auto_title')}\n"]
+        report.append(f"{i18n.t('scan_auto_issues', count=len(issues))}\n")
         report.extend(issues)
-        report.append(f"\n🕐 _Auto-scan: {timestamp}_")
-        report.append("ℹ️ Gunakan /scan untuk laporan lengkap.")
+        report.append(f"\n{i18n.t('scan_auto_footer', timestamp=timestamp)}")
+        report.append(i18n.t("scan_auto_hint"))
 
         logging.info(f"[SCANNER] Silent scan selesai — {len(issues)} masalah terdeteksi.")
         return "\n\n".join(report)

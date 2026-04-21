@@ -1,6 +1,7 @@
 import subprocess
 import logging
 import time
+from modules.core.i18n import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,11 @@ class AutoRemediation:
             actions.append(result)
 
         if not actions:
-            return "🟢 *Auto-Remediation*: Tidak ada masalah yang perlu diperbaiki. Semua aman."
+            return i18n.t("remediate_ok")
 
-        report = ["🔧 *AUTO-REMEDIATION REPORT*\n"]
+        report = [i18n.t("remediate_title") + "\n"]
         report.extend(actions)
-        report.append(f"\n🕐 _Remediated at: {time.strftime('%Y-%m-%d %H:%M:%S')}_")
+        report.append(f"\n{i18n.t('remediate_done_at', timestamp=time.strftime('%Y-%m-%d %H:%M:%S'))}")
 
         logger.info(f"[REMEDIATION] Selesai. {len(actions)} tindakan dilakukan.")
         return "\n\n".join(report)
@@ -64,10 +65,10 @@ class AutoRemediation:
 
             if code2 == 0:
                 logger.info("[REMEDIATION] ✅ UFW berhasil diaktifkan")
-                return "✅ *Firewall (UFW)*: Berhasil diaktifkan secara otomatis."
+                return i18n.t("remediate_fw_ok")
             else:
                 logger.warning(f"[REMEDIATION] ❌ Gagal mengaktifkan UFW: {err2}")
-                return f"❌ *Firewall (UFW)*: Gagal diaktifkan — {err2}"
+                return i18n.t("remediate_fw_fail", error=err2)
 
         return ""
 
@@ -90,10 +91,10 @@ class AutoRemediation:
                 f"sudo sed -i 's/^#PermitRootLogin yes/PermitRootLogin no/' {sshd_config}"
             )
             if rc == 0:
-                results.append("✅ *SSH PermitRootLogin*: Diubah dari `yes` ke `no`.")
+                results.append(i18n.t("remediate_ssh_root_ok"))
                 needs_reload = True
             else:
-                results.append("❌ *SSH PermitRootLogin*: Gagal mengubah konfigurasi.")
+                results.append(i18n.t("remediate_ssh_root_fail"))
 
         if "passwordauthentication yes" in out.lower():
             logger.warning("[REMEDIATION] PasswordAuthentication yes detected — memperbaiki...")
@@ -102,17 +103,17 @@ class AutoRemediation:
                 f"sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' {sshd_config}"
             )
             if rc == 0:
-                results.append("✅ *SSH PasswordAuth*: Diubah dari `yes` ke `no`.")
+                results.append(i18n.t("remediate_ssh_pass_ok"))
                 needs_reload = True
             else:
-                results.append("❌ *SSH PasswordAuth*: Gagal mengubah konfigurasi.")
+                results.append(i18n.t("remediate_ssh_pass_fail"))
 
         if needs_reload:
             _, _, rc = cls._run_cmd("sudo systemctl reload sshd 2>/dev/null || sudo systemctl reload ssh")
             if rc == 0:
-                results.append("✅ *SSH Service*: Berhasil di-reload.")
+                results.append(i18n.t("remediate_sshd_reload_ok"))
             else:
-                results.append("⚠️ *SSH Service*: Gagal reload — restart manual diperlukan.")
+                results.append(i18n.t("remediate_sshd_reload_fail"))
 
         return results
 
@@ -146,9 +147,9 @@ class AutoRemediation:
 
         result_parts = []
         if fixed:
-            result_parts.append(f"✅ *Services Restarted*: {', '.join(fixed)}")
+            result_parts.append(i18n.t("remediate_svc_fixed", services=', '.join(fixed)))
         if still_broken:
-            result_parts.append(f"❌ *Services Still Failed*: {', '.join(still_broken)}")
+            result_parts.append(i18n.t("remediate_svc_broken", services=', '.join(still_broken)))
 
         return "\n".join(result_parts) if result_parts else ""
 

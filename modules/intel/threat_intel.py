@@ -3,6 +3,7 @@ import requests
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
+from modules.core.i18n import i18n
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
@@ -152,19 +153,19 @@ class ThreatIntel:
     def format_intel_report(cls, ip: str) -> str:
         """Format human-readable untuk Telegram"""
         data = cls.enrich(ip)
-        
-        danger = "🔴 BERBAHAYA" if data["is_dangerous"] else "🟢 Aman"
-        tor = "⚠️ Ya (TOR Node)" if data["is_tor"] else "Tidak"
+
+        danger = i18n.t("intel_dangerous") if data["is_dangerous"] else i18n.t("intel_safe")
+        tor = i18n.t("intel_tor_yes") if data["is_tor"] else i18n.t("intel_tor_no")
 
         return (
-            f"🌐 *Threat Intelligence: `{ip}`*\n"
-            f"Negara: {data['country']} ({data['country_code']})\n"
-            f"Kota: {data['city'] or '-'}\n"
-            f"ISP: {data['isp'] or '-'}\n"
-            f"Abuse Score: {data['abuse_score']}/100\n"
-            f"Total Reports: {data['total_reports']}\n"
-            f"TOR Node: {tor}\n"
-            f"Status: {danger}"
+            f"{i18n.t('intel_title', ip=ip)}\n"
+            f"{i18n.t('intel_country')}: {data['country']} ({data['country_code']})\n"
+            f"{i18n.t('intel_city')}: {data['city'] or '-'}\n"
+            f"{i18n.t('intel_isp')}: {data['isp'] or '-'}\n"
+            f"{i18n.t('intel_abuse_score')}: {data['abuse_score']}/100\n"
+            f"{i18n.t('intel_total_reports')}: {data['total_reports']}\n"
+            f"{i18n.t('intel_tor')}: {tor}\n"
+            f"{i18n.t('intel_status')}: {danger}"
         )
 
 
