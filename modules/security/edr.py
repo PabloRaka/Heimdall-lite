@@ -148,23 +148,30 @@ class ProcessMonitor:
         return None
 
     def _respond(self, proc, info: dict, threat: str):
-        """Kill proses berbahaya dan alert admin."""
+        """Kill proses berbahaya dan alert admin. Di Safe Mode: alert saja."""
+        from modules.core.safe_mode import safe_mode
+
         pid = info['pid']
         username = info.get('username', '?')
         name = info.get('name', '?')
         cmdline = ' '.join(info.get('cmdline') or [])[:200]
 
-        # Kill proses — mode langsung (SIGKILL)
-        try:
-            os.kill(pid, signal.SIGKILL)
-            action = "KILLED"
-            logger.warning(f"[EDR] 🔴 KILLED PID {pid}: {threat}")
-        except PermissionError:
-            action = "KILL_FAILED"
-            logger.error(f"[EDR] ❌ Cannot kill PID {pid} (permission denied)")
-        except ProcessLookupError:
-            action = "ALREADY_DEAD"
-            logger.info(f"[EDR] PID {pid} already terminated")
+        if safe_mode.is_enabled:
+            # Safe Mode ON: hanya alert, TIDAK kill
+            action = "ALERT_ONLY"
+            logger.warning(f"[EDR] ⚠️ SAFE-MODE: Threat detected PID {pid} but NOT killed: {threat}")
+        else:
+            # Safe Mode OFF: Kill proses — mode langsung (SIGKILL)
+            try:
+                os.kill(pid, signal.SIGKILL)
+                action = "KILLED"
+                logger.warning(f"[EDR] 🔴 KILLED PID {pid}: {threat}")
+            except PermissionError:
+                action = "KILL_FAILED"
+                logger.error(f"[EDR] ❌ Cannot kill PID {pid} (permission denied)")
+            except ProcessLookupError:
+                action = "ALREADY_DEAD"
+                logger.info(f"[EDR] PID {pid} already terminated")
 
         # Record kill
         with self._lock:

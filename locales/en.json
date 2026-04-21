@@ -195,5 +195,11 @@
   "heal_all_ok": "🟢 *Self-Healing*: All critical files intact. No changes detected.",
   "heal_restored": "✅ Auto-restored from backup",
   "heal_alert_only": "⚠️ CRITICAL — File changed (auto-restore disabled for safety)",
-  "heal_deleted": "🔴 CRITICAL — File has been DELETED!"
+  "heal_deleted": "🔴 CRITICAL — File has been DELETED!",
+
+  "safemode_enabled": "🟡 *Safe Mode ENABLED*\n\nAll destructive actions (block, kill, restore, remediate) are now *alert-only*.\nHeimdall will detect and report threats, but will NOT take automatic action.\n\nUse /safemode again to disable.",
+  "safemode_disabled": "🟢 *Safe Mode DISABLED*\n\nFull protection is now ACTIVE.\nHeimdall will automatically block IPs, kill malicious processes, restore tampered files, and remediate vulnerabilities.\n\nUse /safemode again to re-enable.",
+  "safemode_status": "🛡️ Safe Mode: {status}",
+  "safemode_remediate_skip": "⚠️ *Auto-Remediation skipped* — Safe Mode is ON.\nHeimdall detected issues but did not auto-fix them.\nDisable Safe Mode (`/safemode`) to enable auto-remediation.",
+  "help_safemode": "/safemode — Toggle safe mode (alert-only)"
 }

@@ -71,6 +71,11 @@ def init_db():
     INSERT OR IGNORE INTO settings (key, value) VALUES ('language', 'en')
     """)
 
+    # Isi default safe_mode: true (aman untuk user baru)
+    cursor.execute("""
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('safe_mode', 'true')
+    """)
+
     # Tabel 6: honeypot_logs - Log koneksi ke port honeypot
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS honeypot_logs (

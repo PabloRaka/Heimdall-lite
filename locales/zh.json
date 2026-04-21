@@ -195,5 +195,11 @@
   "heal_all_ok": "🟢 *自愈系统*：所有关键文件完好。未检测到任何更改。",
   "heal_restored": "✅ 已从备份自动恢复",
   "heal_alert_only": "⚠️ 严重 — 文件已更改（为安全起见，自动恢复已禁用）",
-  "heal_deleted": "🔴 严重 — 文件已被删除！"
+  "heal_deleted": "🔴 严重 — 文件已被删除！",
+
+  "safemode_enabled": "🟡 *安全模式已启用*\n\n所有破坏性操作（封锁、终止进程、恢复文件、修复漏洞）现在仅为*警报模式*。\nHeimdall 会检测并报告威胁，但不会自动采取行动。\n\n再次使用 /safemode 禁用。",
+  "safemode_disabled": "🟢 *安全模式已禁用*\n\n完全保护现已激活。\nHeimdall 将自动封锁 IP、终止恶意进程、恢复被篡改文件并修复安全漏洞。\n\n再次使用 /safemode 重新启用。",
+  "safemode_status": "🛡️ 安全模式: {status}",
+  "safemode_remediate_skip": "⚠️ *自动修复已跳过* — 安全模式已开启。\nHeimdall 检测到问题但未自动修复。\n禁用安全模式 (`/safemode`) 以启用自动修复。",
+  "help_safemode": "/safemode — 切换安全模式（仅警报）"
 }

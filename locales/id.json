@@ -195,5 +195,11 @@
   "heal_all_ok": "🟢 *Self-Healing*: Semua file kritis utuh. Tidak ada perubahan terdeteksi.",
   "heal_restored": "✅ Auto-restore dari backup berhasil",
   "heal_alert_only": "⚠️ KRITIS — File berubah (auto-restore dinonaktifkan untuk keamanan)",
-  "heal_deleted": "🔴 KRITIS — File telah DIHAPUS!"
+  "heal_deleted": "🔴 KRITIS — File telah DIHAPUS!",
+
+  "safemode_enabled": "🟡 *Safe Mode AKTIF*\n\nSemua aksi destruktif (blokir, kill, restore, remediasi) sekarang hanya *alert saja*.\nHeimdall tetap mendeteksi dan melaporkan ancaman, tapi TIDAK mengambil tindakan otomatis.\n\nGunakan /safemode lagi untuk menonaktifkan.",
+  "safemode_disabled": "🟢 *Safe Mode NONAKTIF*\n\nPerlindungan penuh sekarang AKTIF.\nHeimdall akan otomatis memblokir IP, menghentikan proses berbahaya, memulihkan file, dan memperbaiki celah keamanan.\n\nGunakan /safemode lagi untuk mengaktifkan kembali.",
+  "safemode_status": "🛡️ Safe Mode: {status}",
+  "safemode_remediate_skip": "⚠️ *Auto-Remediasi dilewati* — Safe Mode AKTIF.\nHeimdall mendeteksi masalah tapi tidak memperbaikinya.\nNonaktifkan Safe Mode (`/safemode`) untuk mengaktifkan auto-remediasi.",
+  "help_safemode": "/safemode — Toggle safe mode (hanya alert)"
 }

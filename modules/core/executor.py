@@ -24,6 +24,11 @@ class Executor:
     @staticmethod
     def block_cloudflare(ip: str, reason: str = "Micro-SOC Auto Block") -> bool:
         """Blokir IP di Cloudflare WAF menggunakan Access Rules"""
+        from modules.core.safe_mode import safe_mode
+        if not safe_mode.check(f"BLOCK_CF {ip}"):
+            print(f"  [SAFE-MODE] ⚠️ CF block for {ip} skipped (alert-only)")
+            return True  # Return True agar pipeline tetap berjalan
+
         print(f"[EXECUTOR] [CF] Mencoba blokir {ip}...")
         
         if DRY_RUN:
@@ -105,6 +110,11 @@ class Executor:
     @staticmethod
     def block_ufw(ip: str) -> bool:
         """Blokir IP di level Local Firewall (UFW)"""
+        from modules.core.safe_mode import safe_mode
+        if not safe_mode.check(f"BLOCK_UFW {ip}"):
+            print(f"  [SAFE-MODE] ⚠️ UFW block for {ip} skipped (alert-only)")
+            return True
+
         cmd = ["sudo", "ufw", "insert", "1", "deny", "from", ip, "to", "any"]
         print(f"[EXECUTOR] [UFW] Mencoba blokir {ip}...")
         

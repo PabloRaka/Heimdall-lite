@@ -222,6 +222,20 @@ class SelfHealer:
                 self._log_healing(filepath, "ALERT_ONLY", backup_hash, current_hash)
 
             else:
+                # Cek Safe Mode — jika aktif, hanya alert tanpa restore
+                from modules.core.safe_mode import safe_mode
+                if safe_mode.is_enabled:
+                    actions.append({
+                        "filepath": filepath,
+                        "action": "ALERT_ONLY",
+                        "detail": f"File changed: {filepath} (safe mode — auto-restore skipped)",
+                        "old_hash": backup_hash[:12],
+                        "new_hash": current_hash[:12],
+                    })
+                    self._log_healing(filepath, "SAFE_MODE_ALERT", backup_hash, current_hash)
+                    logger.warning(f"[SELF-HEAL] ⚠️ SAFE-MODE: {filepath} changed but NOT restored")
+                    continue
+
                 # Auto-restore dari backup
                 try:
                     # 1. Simpan file yang berubah sebagai evidensi

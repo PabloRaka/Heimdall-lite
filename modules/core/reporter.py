@@ -22,6 +22,7 @@ from modules.infra.multi_server import multi_server
 from modules.security.edr import process_monitor
 from modules.security.honeypot import honeypot_manager
 from modules.security.selfheal import self_healer
+from modules.core.safe_mode import safe_mode
 import sqlite3
 import time
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -62,6 +63,7 @@ class TelegramReporter:
             self.app.add_handler(CommandHandler("honeypot", self.honeypot_command))
             self.app.add_handler(CommandHandler("backup", self.backup_command))
             self.app.add_handler(CommandHandler("heal", self.heal_command))
+            self.app.add_handler(CommandHandler("safemode", self.safemode_command))
             self.app.add_handler(CommandHandler("help", self.help_command))
             # Inline keyboard callback untuk pemilihan bahasa
             self.app.add_handler(CallbackQueryHandler(self.lang_callback, pattern="^setlang:"))
@@ -324,16 +326,32 @@ class TelegramReporter:
         report = self_healer.format_heal_report()
         await update.message.reply_text(report, parse_mode="Markdown")
 
+    async def safemode_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handler /safemode — Toggle Safe Mode on/off"""
+        if str(update.effective_chat.id) != str(CHAT_ID): return
+        new_state = safe_mode.toggle()
+        if new_state:
+            msg = i18n.t("safemode_enabled")
+        else:
+            msg = i18n.t("safemode_disabled")
+        await update.message.reply_text(msg, parse_mode="Markdown")
+
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handler /help — Daftar semua command"""
         if str(update.effective_chat.id) != str(CHAT_ID): return
+
+        # Safe mode indicator
+        sm_status = "🟡 ON" if safe_mode.is_enabled else "🟢 OFF"
+
         msg = (
-            f"{i18n.t('help_title')}\n\n"
+            f"{i18n.t('help_title')}\n"
+            f"{i18n.t('safemode_status', status=sm_status)}\n\n"
             f"{i18n.t('help_monitoring')}\n"
             f"{i18n.t('help_health')}\n"
             f"{i18n.t('help_status')}\n"
             f"{i18n.t('help_rules')}\n"
-            f"{i18n.t('help_lang')}\n\n"
+            f"{i18n.t('help_lang')}\n"
+            f"{i18n.t('help_safemode')}\n\n"
             f"{i18n.t('help_investigation')}\n"
             f"{i18n.t('help_check')}\n"
             f"{i18n.t('help_intel')}\n"

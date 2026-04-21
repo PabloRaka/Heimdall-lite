@@ -47,6 +47,7 @@ from modules.infra.multi_server import multi_server
 from modules.security.edr import process_monitor
 from modules.security.honeypot import honeypot_manager
 from modules.security.selfheal import self_healer
+from modules.core.safe_mode import safe_mode
 
 def process_pipeline(event: dict):
     """
@@ -264,6 +265,11 @@ def start_micro_soc():
     print("========================================")
     print("\U0001f6e1\ufe0f  MICRO-SOC AGENT INITIALIZATION...   ")
     print("========================================")
+    
+    # Safe Mode status
+    sm_label = "🟡 ON (alert-only)" if safe_mode.is_enabled else "🟢 OFF (full protection)"
+    print(f"[INFO] 🛡️  Safe Mode: {sm_label}")
+    print(f"[INFO] Toggle via Telegram: /safemode or .env: SAFE_MODE=true/false")
     
     # 1. Jalankan Telegram Reporter di Background
     reporter.start_in_background()

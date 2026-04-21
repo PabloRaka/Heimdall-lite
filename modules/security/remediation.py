@@ -27,6 +27,11 @@ class AutoRemediation:
         Menjalankan seluruh remediasi otomatis.
         Returns: string laporan tindakan yang dilakukan.
         """
+        from modules.core.safe_mode import safe_mode
+        if safe_mode.is_enabled:
+            logger.info("[REMEDIATION] Safe Mode ON — remediation skipped (alert-only)")
+            return i18n.t("safemode_remediate_skip")
+
         logger.info("[REMEDIATION] Memulai auto-remediation...")
         actions = []
 
