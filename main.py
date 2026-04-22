@@ -259,7 +259,7 @@ def canary_alert_handler(filepath, action):
     )
     sent = reporter.send_message(
         msg,
-        dedupe_key=f"canary:{action}",
+        dedupe_key="canary:intrusion",
         cooldown=CANARY_DEDUPE_COOLDOWN,
     )
     if sent:
