@@ -10,13 +10,6 @@ Heimdall-Lite functions as a Layer-2 defense system optimized for low-spec envir
 
 ---
 
-## 🎯 Target Audience
-
-Heimdall-Lite is purpose-built for users who need autonomous security without the overhead of complex enterprise stacks (like Splunk or Elastic):
-- **Indie Hackers & Solo Founders:** Running 1-5 VPS instances and needing an automated "security guard" that handles mitigation and alerts via Telegram, rather than requiring daily manual log parsing.
-- **Small Infra Teams / Sysadmins:** Managing lean infrastructure that requires a robust, easy-to-deploy automated defense layer capable of auto-remediating basic misconfigurations.
-- **Self-Hosters & Homelab Enthusiasts:** Seeking an advanced, AI-driven protective daemon that can run smoothly on a low-spec machine (like a Raspberry Pi or single vCPU VPS) behind Cloudflare.
-
 ## 🔥 Key Features (Why Heimdall-Lite?)
 
 - **Offloaded LLM Inference:** Sends complex log analysis payloads to a remote **Ollama** API endpoint, keeping the local server CPU footprint near 0%.
