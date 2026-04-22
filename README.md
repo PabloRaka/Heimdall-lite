@@ -172,7 +172,7 @@ For permanent deployment, configure Heimdall-Lite to run as a background service
 
 You have a complete SOC command center in your Telegram Bot. Send `/help` to see all commands:
 
-![Telegram Commands](assets/command.png)
+<img src="assets/command.png" alt="Telegram Commands" width="25%">
 *(Example output of the `/help` command)*
 
 **📊 Monitoring**
@@ -194,7 +194,7 @@ You have a complete SOC command center in your Telegram Bot. Send `/help` to see
 - `/scan` — Run a 7-layer Host Vulnerability Scan.
 - `/remediate` — Run Auto-Remediation to fix active vulnerabilities.
 
-![Vulnerability Scan Result](assets/scan.png)
+<img src="assets/scan.png" alt="Vulnerability Scan Result" width="25%">
 *(Example notification from the `/scan` command)*
 
 **🧠 Intelligence**
