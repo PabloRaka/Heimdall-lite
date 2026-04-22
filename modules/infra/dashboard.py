@@ -98,6 +98,38 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .badge.alert { background: var(--bg); color: var(--warn); outline: 1px solid var(--warn); }
   .badge.safe { background: var(--bg); color: var(--safe); outline: 1px solid var(--safe); }
 
+  /* Log Archive controls */
+  .log-controls {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 10px;
+  }
+  .log-controls-left { display: flex; align-items: center; gap: 12px; }
+  .per-page-label { font-size: 12px; color: var(--dim); text-transform: uppercase; }
+  .per-page-select {
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--text); padding: 4px 8px;
+    font-family: 'Courier New', Courier, monospace; font-size: 13px;
+    cursor: pointer; outline: none;
+  }
+  .per-page-select:hover { border-color: var(--accent); color: var(--accent); }
+  .per-page-select option { background: #111; }
+
+  /* Pagination */
+  .pagination {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  .page-btn {
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); padding: 4px 10px;
+    font-family: 'Courier New', Courier, monospace; font-size: 12px;
+    cursor: pointer; transition: all 0.15s;
+    text-transform: uppercase; min-width: 32px; text-align: center;
+  }
+  .page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .page-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: bold; }
+  .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .page-info { font-size: 12px; color: var(--dim); white-space: nowrap; }
+
   .stm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
   .stm-card { border: 1px solid var(--text); padding: 12px; font-size: 12px; background: rgba(255, 176, 0, 0.03); line-height: 1.5; }
   .stm-card .ip { color: var(--accent); font-weight: bold; font-size: 14px; margin-bottom: 6px; border-bottom: 1px dashed var(--border); padding-bottom: 4px; }
@@ -106,6 +138,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
   @media(max-width:768px) {
     .grid { grid-template-columns: 1fr 1fr; }
+    .log-controls { flex-direction: column; align-items: flex-start; }
   }
 </style>
 </head>
@@ -123,11 +156,26 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="section">
-  <div class="section-title">LOG_ARCHIVE : LAST_50</div>
+  <div class="log-controls">
+    <div class="log-controls-left">
+      <div class="section-title" id="log-archive-title">LOG_ARCHIVE</div>
+      <span class="per-page-label">ROWS/PAGE:</span>
+      <select class="per-page-select" id="per-page-select">
+        <option value="15">15</option>
+        <option value="20">20</option>
+        <option value="25" selected>25</option>
+        <option value="50">50</option>
+      </select>
+    </div>
+    <div class="pagination" id="pagination-top"></div>
+  </div>
   <table>
     <thead><tr><th>TIMESTAMP</th><th>SRC_IP</th><th>THREAT_SIG</th><th>ACTION</th><th>HEURISTIC_REASON</th><th>CONFIRM_SCORE</th></tr></thead>
     <tbody id="incidents-body"><tr><td colspan="6" style="text-align:center;">AWAITING_DATA...</td></tr></tbody>
   </table>
+  <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+    <div class="pagination" id="pagination-bottom"></div>
+  </div>
 </div>
 
 <div class="section">
@@ -142,34 +190,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </div>
 
 <script>
-async function fetchData() {
+// --- Pagination State ---
+let currentPage = 1;
+let currentPerPage = 25;
+let totalPages = 1;
+let totalRows = 0;
+let autoRefreshTimer = null;
+
+// --- Fetch Stats & STM (dashboard summary) ---
+async function fetchSummary() {
   try {
     const res = await fetch('/api/dashboard');
     const data = await res.json();
-
     document.getElementById('s-today').textContent = data.today_incidents;
     document.getElementById('s-total').textContent = data.total_blocks;
     document.getElementById('s-active').textContent = data.active_ips;
     document.getElementById('s-white').textContent = data.whitelisted;
-
-    const tbody = document.getElementById('incidents-body');
-    if (data.recent_incidents.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">NO_DATA_FOUND</td></tr>';
-    } else {
-      tbody.innerHTML = data.recent_incidents.map(i => {
-        let badge = 'safe';
-        if (i.action.includes('BLOCK')) badge = 'block';
-        else if (i.action === 'ALERT_ONLY') badge = 'alert';
-        return `<tr>
-          <td>${i.timestamp}</td>
-          <td style="color:var(--accent); font-weight:bold;">${i.ip}</td>
-          <td>${i.threat_type}</td>
-          <td><span class="badge ${badge}">${i.action}</span></td>
-          <td>${i.reason}</td>
-          <td>${i.confidence}</td>
-        </tr>`;
-      }).join('');
-    }
 
     const stmGrid = document.getElementById('stm-grid');
     const stmEntries = Object.entries(data.stm_data);
@@ -187,12 +223,117 @@ async function fetchData() {
       `).join('');
     }
   } catch (e) {
-    console.error('TRML_ERR:', e);
+    console.error('TRML_ERR (summary):', e);
   }
 }
 
-fetchData();
-setInterval(fetchData, 10000);
+// --- Fetch Log Archive with Pagination ---
+async function fetchLogs(page, perPage) {
+  try {
+    const res = await fetch(`/api/logs?page=${page}&per_page=${perPage}`);
+    const data = await res.json();
+
+    totalPages = data.total_pages;
+    totalRows  = data.total;
+    currentPage = data.page;
+
+    // Update section title
+    const start = (currentPage - 1) * perPage + 1;
+    const end   = Math.min(currentPage * perPage, totalRows);
+    document.getElementById('log-archive-title').textContent =
+      `LOG_ARCHIVE : ${totalRows > 0 ? start + '-' + end : 0} / ${totalRows}`;
+
+    // Render table rows
+    const tbody = document.getElementById('incidents-body');
+    if (!data.incidents || data.incidents.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">NO_DATA_FOUND</td></tr>';
+    } else {
+      tbody.innerHTML = data.incidents.map(i => {
+        let badge = 'safe';
+        if (i.action && i.action.includes('BLOCK')) badge = 'block';
+        else if (i.action === 'ALERT_ONLY') badge = 'alert';
+        return `<tr>
+          <td>${i.timestamp || '-'}</td>
+          <td style="color:var(--accent); font-weight:bold;">${i.ip || '-'}</td>
+          <td>${i.threat_type || '-'}</td>
+          <td><span class="badge ${badge}">${i.action || '-'}</span></td>
+          <td>${i.reason || '-'}</td>
+          <td>${i.confidence !== undefined ? i.confidence : '-'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    renderPagination();
+  } catch (e) {
+    console.error('TRML_ERR (logs):', e);
+  }
+}
+
+// --- Render Pagination Controls ---
+function renderPagination() {
+  const ids = ['pagination-top', 'pagination-bottom'];
+  ids.forEach(id => {
+    const container = document.getElementById(id);
+    if (!container) return;
+
+    if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+    let html = '';
+    // Prev button
+    html += `<button class="page-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>◄ PREV</button>`;
+
+    // Page number buttons (smart windowing)
+    const window = 2;
+    let start = Math.max(1, currentPage - window);
+    let end   = Math.min(totalPages, currentPage + window);
+
+    if (start > 1) {
+      html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+      if (start > 2) html += `<span class="page-info">…</span>`;
+    }
+    for (let p = start; p <= end; p++) {
+      html += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goToPage(${p})">${p}</button>`;
+    }
+    if (end < totalPages) {
+      if (end < totalPages - 1) html += `<span class="page-info">…</span>`;
+      html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    }
+
+    // Next button
+    html += `<button class="page-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>NEXT ►</button>`;
+
+    // Page info
+    html += `<span class="page-info">PG ${currentPage}/${totalPages}</span>`;
+
+    container.innerHTML = html;
+  });
+}
+
+function goToPage(page) {
+  if (page < 1 || page > totalPages) return;
+  currentPage = page;
+  fetchLogs(currentPage, currentPerPage);
+}
+
+// --- Per-Page Selector ---
+document.getElementById('per-page-select').addEventListener('change', function() {
+  currentPerPage = parseInt(this.value);
+  currentPage = 1; // reset to first page
+  fetchLogs(currentPage, currentPerPage);
+});
+
+// --- Initial Load & Auto-Refresh ---
+function fetchAll() {
+  fetchSummary();
+  fetchLogs(currentPage, currentPerPage);
+}
+
+fetchAll();
+autoRefreshTimer = setInterval(function() {
+  fetchSummary();
+  // Only auto-refresh logs if user is on page 1 to avoid disrupting navigation
+  if (currentPage === 1) fetchLogs(1, currentPerPage);
+}, 10000);
 </script>
 </body>
 </html>"""
@@ -218,6 +359,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             data = self._get_dashboard_data()
+            self.wfile.write(json.dumps(data).encode("utf-8"))
+
+        elif self.path.startswith("/api/logs"):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            data = self._get_logs_paginated(self.path)
             self.wfile.write(json.dumps(data).encode("utf-8"))
 
         else:
@@ -256,11 +405,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             row = cursor.fetchone()
             data["whitelisted"] = row["c"] if row else 0
 
-            # Recent incidents (last 50)
-            cursor.execute("SELECT * FROM incidents ORDER BY id DESC LIMIT 50")
-            rows = cursor.fetchall()
-            data["recent_incidents"] = [dict(r) for r in rows]
-
             conn.close()
         except Exception as e:
             logger.warning(f"[DASHBOARD] DB error: {e}")
@@ -276,6 +420,63 @@ class DashboardHandler(BaseHTTPRequestHandler):
             pass
 
         return data
+
+    def _get_logs_paginated(self, path: str) -> dict:
+        """Mengambil log archive dengan pagination"""
+        # Parse query params
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(path)
+        params = parse_qs(parsed.query)
+
+        ALLOWED_PER_PAGE = {15, 20, 25, 50}
+        try:
+            per_page = int(params.get("per_page", ["25"])[0])
+            if per_page not in ALLOWED_PER_PAGE:
+                per_page = 25
+        except (ValueError, IndexError):
+            per_page = 25
+
+        try:
+            page = max(1, int(params.get("page", ["1"])[0]))
+        except (ValueError, IndexError):
+            page = 1
+
+        result = {
+            "page": page,
+            "per_page": per_page,
+            "total": 0,
+            "total_pages": 1,
+            "incidents": []
+        }
+
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            # Count total rows
+            cursor.execute("SELECT COUNT(*) as c FROM incidents")
+            row = cursor.fetchone()
+            total = row["c"] if row else 0
+            result["total"] = total
+            result["total_pages"] = max(1, (total + per_page - 1) // per_page)
+
+            # Clamp page
+            page = min(page, result["total_pages"])
+            result["page"] = page
+            offset = (page - 1) * per_page
+
+            cursor.execute(
+                "SELECT * FROM incidents ORDER BY id DESC LIMIT ? OFFSET ?",
+                (per_page, offset)
+            )
+            rows = cursor.fetchall()
+            result["incidents"] = [dict(r) for r in rows]
+            conn.close()
+        except Exception as e:
+            logger.warning(f"[DASHBOARD] Logs pagination error: {e}")
+
+        return result
 
 
 def start_dashboard():

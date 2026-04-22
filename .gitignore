@@ -57,3 +57,5 @@ cover/
 .idea/
 .DS_Store
 .agents/
+tests/
+
