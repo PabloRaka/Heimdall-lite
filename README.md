@@ -4,6 +4,8 @@
 
 # Heimdall-Lite: Lightweight Micro-SOC Security Daemon 🛡️
 
+[![CI](https://github.com/PabloRaka/Heimdall-lite-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/PabloRaka/Heimdall-lite-dev/actions/workflows/ci.yml)
+
 A low-footprint security daemon designed for proactive threat mitigation with minimal compute overhead.
 
 Heimdall-Lite functions as a Layer-2 defense system optimized for low-spec environments operating behind a Cloudflare Tunnel. Instead of passive logging, it actively parses web and auth logs, utilizes remote LLM endpoints for behavioral analysis, and triggers automated firewall/routing responses. Core capabilities include IP clustering for decentralized attacks, automated configuration patching, dynamic malicious signature generation, and decoy (canary) file monitoring.
