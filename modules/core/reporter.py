@@ -1,7 +1,7 @@
 import os
 import requests
 import asyncio
-from threading import Thread
+from threading import Thread, Lock
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
@@ -39,6 +39,8 @@ class TelegramReporter:
     """
     def __init__(self):
         self.app = None
+        self._dedupe_lock = Lock()
+        self._recent_messages = {}
         if TOKEN:
             # Setup bot listener untuk command
             self.app = ApplicationBuilder().token(TOKEN).build()
@@ -376,18 +378,35 @@ class TelegramReporter:
         )
         await update.message.reply_text(msg, parse_mode="Markdown")
 
-    def send_message(self, message: str):
+    def send_message(self, message: str, dedupe_key: str = None, cooldown: int = 0) -> bool:
         """
         Mengirim pesan ke Telegram secara sinkron.
         Menggunakan requests murni agar tidak bentrok dengan asyncio event loop milik bot.
         Sangat aman dipanggil dari thread mana pun.
         """
+        if dedupe_key and cooldown > 0:
+            now = time.time()
+            with self._dedupe_lock:
+                last_sent = self._recent_messages.get(dedupe_key, 0)
+                if now - last_sent < cooldown:
+                    print(f"[REPORTER] Duplicate alert ditahan: {dedupe_key}")
+                    return False
+                self._recent_messages[dedupe_key] = now
+
+                expired_keys = [
+                    key for key, sent_at in self._recent_messages.items()
+                    if now - sent_at >= cooldown
+                ]
+                for key in expired_keys:
+                    if key != dedupe_key:
+                        self._recent_messages.pop(key, None)
+
         if not TOKEN or not CHAT_ID:
             print(f"\n[REPORTER SIMULATION - No Token]")
             print("-" * 40)
             print(message)
             print("-" * 40)
-            return
+            return True
             
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
         payload = {
@@ -399,8 +418,10 @@ class TelegramReporter:
             # Gunakan timeout agar tidak memblokir eksekusi utama jika API down
             response = requests.post(url, json=payload, timeout=5)
             response.raise_for_status()
+            return True
         except requests.exceptions.RequestException as e:
             print(f"[ERROR] Gagal mengirim pesan ke Telegram: {e}")
+            return False
 
     def start_polling(self):
         """Menjalankan listener command Telegram (blocking)"""

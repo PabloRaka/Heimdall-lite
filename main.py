@@ -49,6 +49,9 @@ from modules.security.honeypot import honeypot_manager
 from modules.security.selfheal import self_healer
 from modules.core.safe_mode import safe_mode
 
+ALERT_DEDUPE_COOLDOWN = int(config.get("pipeline.alert_dedupe_cooldown_seconds", 300))
+CANARY_DEDUPE_COOLDOWN = int(config.get("pipeline.canary_alert_dedupe_cooldown_seconds", 300))
+
 def process_pipeline(event: dict):
     """
     Core Event Loop Pipeline.
@@ -73,7 +76,11 @@ def process_pipeline(event: dict):
             reporter.send_message(f"\u274c Executor error untuk {ip}: {e}")
             
         LTM.add_incident(ip, threat_type="THREAT", action="BLOCK_CF", reason="GM Fast Path match", confidence=1.0)
-        reporter.send_message(f"\u26a1 FAST BLOCK: `{ip}`")
+        reporter.send_message(
+            f"\u26a1 FAST BLOCK: `{ip}`",
+            dedupe_key=f"fast_block:{ip}",
+            cooldown=ALERT_DEDUPE_COOLDOWN,
+        )
         return
     
     if LTM.is_whitelisted(ip):
@@ -95,7 +102,10 @@ def process_pipeline(event: dict):
                          reason=f"Honeypot trap: accessed {path_val}", confidence=1.0)
         reporter.send_message(
             f"\U0001f36f *HONEYPOT TRAP*\nIP: `{ip}`\nPath: `{path_val}`\n"
-            f"Action: Blocked (CF + UFW)\nConfidence: 1.0")
+            f"Action: Blocked (CF + UFW)\nConfidence: 1.0",
+            dedupe_key=f"honeypot:{ip}:{path_val}",
+            cooldown=ALERT_DEDUPE_COOLDOWN,
+        )
         STM.flush(ip)
         return
 
@@ -118,7 +128,10 @@ def process_pipeline(event: dict):
         reporter.send_message(
             f"\U0001f6a8 *RATE LIMIT / DDoS*\nIP: `{ip}`\n"
             f"Attempts: {stm_data['failed_attempts']} dalam 60 menit\n"
-            f"Action: Blocked (CF + UFW)")
+            f"Action: Blocked (CF + UFW)",
+            dedupe_key=f"ddos:{ip}",
+            cooldown=ALERT_DEDUPE_COOLDOWN,
+        )
         STM.flush(ip)
         return
 
@@ -160,12 +173,20 @@ def process_pipeline(event: dict):
             STM.flush(ip)
             
             msg = f"\U0001f6a8 *THREAT BLOCKED*\nTarget: `{ip}`\nAction: `{action}`\nReason: {reason}\nConfidence: {confidence}"
-            reporter.send_message(msg)
+            reporter.send_message(
+                msg,
+                dedupe_key=f"threat_blocked:{ip}:{status}:{action}",
+                cooldown=ALERT_DEDUPE_COOLDOWN,
+            )
             
     elif action == "ALERT_ONLY":
         print(f"[PIPELINE] \u26a0\ufe0f Keputusan: ALERT {ip}")
         msg = f"\u26a0\ufe0f *SUSPICIOUS ACTIVITY*\nTarget: `{ip}`\nReason: {reason}\nConfidence: {confidence}"
-        reporter.send_message(msg)
+        reporter.send_message(
+            msg,
+            dedupe_key=f"alert_only:{ip}:{status}",
+            cooldown=ALERT_DEDUPE_COOLDOWN,
+        )
         
     else: # SAFE / NONE
         print(f"[PIPELINE] \u2705 Keputusan: SAFE ({ip})")
@@ -236,8 +257,15 @@ def canary_alert_handler(filepath, action):
         f"Time: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         f"\u26a0\ufe0f *Ada penyusup di dalam server!*"
     )
-    reporter.send_message(msg)
-    print(f"[CANARY] \U0001f6a8 ALERT SENT: {filepath} -> {action}")
+    sent = reporter.send_message(
+        msg,
+        dedupe_key=f"canary:{action}",
+        cooldown=CANARY_DEDUPE_COOLDOWN,
+    )
+    if sent:
+        print(f"[CANARY] \U0001f6a8 ALERT SENT: {filepath} -> {action}")
+    else:
+        print(f"[CANARY] Duplicate alert ditahan: {filepath} -> {action}")
 
 def periodic_learning():
     """
@@ -325,4 +353,3 @@ def start_micro_soc():
 
 if __name__ == "__main__":
     start_micro_soc()
-
