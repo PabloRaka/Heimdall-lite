@@ -1,10 +1,9 @@
-import subprocess
-import hashlib
 import json
 import time
 import logging
 from pathlib import Path
 from modules.core.i18n import i18n
+from modules.core.host_runtime import host_path_exists, run_host_command
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -54,7 +53,7 @@ class ServerScanner:
     @staticmethod
     def _run_cmd(cmd: str) -> tuple:
         try:
-            result = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=15)
+            result = run_host_command(cmd, timeout=15)
             return result.stdout.strip(), result.stderr.strip()
         except Exception as e:
             return "", str(e)
@@ -175,9 +174,7 @@ class ServerScanner:
         new_files = []
 
         for filepath in CRITICAL_FILES:
-            # Cek apakah file ada di sistem
-            out, err = cls._run_cmd(f"test -f {filepath} && echo EXISTS")
-            if "EXISTS" not in out:
+            if not host_path_exists(filepath):
                 continue
 
             file_hash = cls._hash_file(filepath)

@@ -144,6 +144,60 @@ modules/
    chmod +x start.sh
    ./start.sh
    ```
+
+### Container Deployment (Docker / Compose)
+
+For fast, reproducible deployment in cloud or lab environments, Heimdall-Lite now ships with container artifacts.
+
+1. **Prepare environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your Cloudflare, Telegram, AbuseIPDB, and Ollama settings
+   ```
+
+2. **Build and start**
+   ```bash
+   docker compose up -d --build
+   ```
+
+   The bundled compose file is now configured for **full host-defense mode**. It joins the host PID and network namespaces, mounts the host root filesystem at `/host`, uses `nsenter` so firewall, `/proc`, `systemctl`, and critical file operations target the real host, and disables both `SAFE_MODE` and `HEIMDALL_DRY_RUN`.
+
+   > [!WARNING]
+   > Running `docker compose up` with the provided `docker-compose.yml` grants Heimdall-Lite **near root-equivalent access to the host**. This is not an isolated container profile. It is a privileged host-defense deployment intended for systems you fully control.
+
+   | Docker Compose access granted | What Heimdall-Lite can do with it | Benefit |
+   | --- | --- | --- |
+   | `privileged: true` | Access kernel-adjacent operations and low-level host features | Enables enforcement and deep host inspection that normal containers cannot perform |
+   | `pid: host` | See and inspect real host processes in `/proc` | Makes EDR and suspicious process detection work against the actual host |
+   | `network_mode: host` | Share the host network stack | Lets honeypots bind directly on host ports and lets firewall logic affect host traffic paths |
+   | `/:/host` mount | Read and write the host filesystem | Enables FIM, self-healing, config inspection, and rollback of real host files |
+   | `nsenter -t 1` | Execute commands inside host namespaces | Makes `ufw`, `systemctl`, `sshd -T`, and similar commands target the real host |
+   | DBus and `/run/systemd` mounts | Reach host service-management interfaces | Allows service health checks, reloads, and restarts from the container |
+   | `NET_ADMIN`, `SYS_ADMIN`, `SYS_PTRACE`, and related capabilities | Modify firewall state, inspect processes, and perform privileged diagnostics | Required for active defense instead of alert-only monitoring |
+   | `SAFE_MODE=false` and `HEIMDALL_DRY_RUN=0` | Perform real actions instead of simulations | Blocks IPs, restarts services, and applies remediation automatically |
+
+3. **Access services**
+   - Dashboard: `http://<host-ip>:8443`
+   - Fake SSH Honeypot: `<host-ip>:2222`
+   - Fake HTTP Honeypot: `http://<host-ip>:8888`
+
+4. **Persisted volumes**
+   - `./data` → SQLite, STM cache, generated security state
+   - `./logs` → watched log files and runtime logs
+   - `./config.yaml` → runtime configuration override
+
+5. **Stop the stack**
+   ```bash
+   docker compose down
+   ```
+
+### Container Runtime Notes
+
+- The compose file is intentionally high-privilege: `privileged: true`, `pid: host`, `network_mode: host`, host root mounted at `/:/host`, plus DBus/systemd runtime mounts.
+- Heimdall-Lite uses `nsenter -t 1` in host-defense mode, so commands such as `ufw`, `systemctl`, `sshd -T`, and file operations against `/etc/*` execute against the real host namespaces instead of the container namespace.
+- This is effectively a host-security appliance packaged as a container. Only run it on systems you fully control, and treat the container as having root-equivalent access to the host.
+- For Kubernetes or enterprise platforms, this layout is already aligned with a standard image + env + volume deployment model, making it straightforward to convert into a `Deployment`, `DaemonSet`, or Helm chart.
+
 ### 🚀 Running as a Systemd Service (Production)
 
 For permanent deployment, configure Heimdall-Lite to run as a background service so it automatically starts on boot and runs continuously.

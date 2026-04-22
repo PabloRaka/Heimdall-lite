@@ -1,7 +1,7 @@
-import subprocess
 import logging
 import time
 from modules.core.i18n import i18n
+from modules.core.host_runtime import run_host_command
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class AutoRemediation:
     @staticmethod
     def _run_cmd(cmd: str) -> tuple:
         try:
-            result = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=15)
+            result = run_host_command(cmd, timeout=15)
             return result.stdout.strip(), result.stderr.strip(), result.returncode
         except Exception as e:
             return "", str(e), 1
@@ -62,11 +62,11 @@ class AutoRemediation:
     @classmethod
     def _fix_firewall(cls) -> str:
         """Mengaktifkan UFW jika mati"""
-        out, err, code = cls._run_cmd("sudo ufw status")
+        out, err, code = cls._run_cmd("ufw status")
 
         if "inactive" in out.lower():
             logger.warning("[REMEDIATION] UFW inactive — mengaktifkan...")
-            out2, err2, code2 = cls._run_cmd("sudo ufw --force enable")
+            out2, err2, code2 = cls._run_cmd("ufw --force enable")
 
             if code2 == 0:
                 logger.info("[REMEDIATION] ✅ UFW berhasil diaktifkan")
@@ -81,7 +81,7 @@ class AutoRemediation:
     def _fix_ssh(cls) -> list:
         """Memperbaiki konfigurasi SSH yang lemah"""
         results = []
-        out, err, code = cls._run_cmd("sudo sshd -T | grep -iE '^permitrootlogin|^passwordauthentication'")
+        out, err, code = cls._run_cmd("sshd -T | grep -iE '^permitrootlogin|^passwordauthentication'")
 
         if not out:
             return results
@@ -92,8 +92,8 @@ class AutoRemediation:
         if "permitrootlogin yes" in out.lower():
             logger.warning("[REMEDIATION] PermitRootLogin yes detected — memperbaiki...")
             _, _, rc = cls._run_cmd(
-                f"sudo sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' {sshd_config} && "
-                f"sudo sed -i 's/^#PermitRootLogin yes/PermitRootLogin no/' {sshd_config}"
+                f"sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' {sshd_config} && "
+                f"sed -i 's/^#PermitRootLogin yes/PermitRootLogin no/' {sshd_config}"
             )
             if rc == 0:
                 results.append(i18n.t("remediate_ssh_root_ok"))
@@ -104,8 +104,8 @@ class AutoRemediation:
         if "passwordauthentication yes" in out.lower():
             logger.warning("[REMEDIATION] PasswordAuthentication yes detected — memperbaiki...")
             _, _, rc = cls._run_cmd(
-                f"sudo sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' {sshd_config} && "
-                f"sudo sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' {sshd_config}"
+                f"sed -i 's/^PasswordAuthentication yes/PasswordAuthentication no/' {sshd_config} && "
+                f"sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication no/' {sshd_config}"
             )
             if rc == 0:
                 results.append(i18n.t("remediate_ssh_pass_ok"))
@@ -114,7 +114,7 @@ class AutoRemediation:
                 results.append(i18n.t("remediate_ssh_pass_fail"))
 
         if needs_reload:
-            _, _, rc = cls._run_cmd("sudo systemctl reload sshd 2>/dev/null || sudo systemctl reload ssh")
+            _, _, rc = cls._run_cmd("systemctl reload sshd 2>/dev/null || systemctl reload ssh")
             if rc == 0:
                 results.append(i18n.t("remediate_sshd_reload_ok"))
             else:
@@ -143,7 +143,7 @@ class AutoRemediation:
 
         for svc in failed_services[:5]:  # Limit ke 5 service
             logger.info(f"[REMEDIATION] Mencoba restart {svc}...")
-            _, _, rc = cls._run_cmd(f"sudo systemctl restart {svc}")
+            _, _, rc = cls._run_cmd(f"systemctl restart {svc}")
 
             if rc == 0:
                 fixed.append(svc)

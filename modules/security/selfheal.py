@@ -1,6 +1,5 @@
 import os
 import hashlib
-import shutil
 import time
 import logging
 import subprocess
@@ -8,6 +7,7 @@ import sqlite3
 from pathlib import Path
 from modules.core.memory import DB_PATH
 from modules.core.i18n import i18n
+from modules.core.host_runtime import HOST_DEFENSE_MODE, host_command, host_path, host_path_exists, run_host_command
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +41,7 @@ ALERT_ONLY_FILES = {
 def _sha256_file(filepath: str) -> str:
     """Hitung SHA-256 hash dari file."""
     try:
-        result = subprocess.run(
-            f"sudo sha256sum {filepath}",
-            shell=True, capture_output=True, text=True, timeout=10
-        )
+        result = run_host_command(f"sha256sum {filepath}", timeout=10)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip().split()[0]
     except Exception:
@@ -56,7 +53,7 @@ def _read_file_content(filepath: str) -> bytes:
     """Baca konten file menggunakan sudo."""
     try:
         result = subprocess.run(
-            f"sudo cat {filepath}",
+            host_command(f"cat {filepath}"),
             shell=True, capture_output=True, timeout=10
         )
         if result.returncode == 0:
@@ -71,17 +68,18 @@ def _write_file_content(filepath: str, content: bytes) -> bool:
     try:
         # Tulis ke temp file dulu, lalu move (atomic write)
         temp_path = f"/tmp/heimdall_restore_{int(time.time())}"
-        with open(temp_path, "wb") as f:
+        temp_write_path = host_path(temp_path) if HOST_DEFENSE_MODE else temp_path
+        with open(temp_write_path, "wb") as f:
             f.write(content)
 
         result = subprocess.run(
-            f"sudo cp {temp_path} {filepath}",
+            host_command(f"cp {temp_path} {filepath}"),
             shell=True, capture_output=True, timeout=10
         )
 
         # Bersihkan temp file
         try:
-            os.remove(temp_path)
+            os.remove(temp_write_path)
         except Exception:
             pass
 
@@ -114,15 +112,9 @@ class SelfHealer:
         all_files = list(CRITICAL_FILES.keys()) + list(ALERT_ONLY_FILES)
 
         for filepath in all_files:
-            if not Path(filepath).exists():
-                # Cek via sudo
-                out = subprocess.run(
-                    f"sudo test -f {filepath} && echo EXISTS",
-                    shell=True, capture_output=True, text=True, timeout=5
-                )
-                if "EXISTS" not in (out.stdout or ""):
-                    results[filepath] = "SKIPPED (not found)"
-                    continue
+            if not host_path_exists(filepath):
+                results[filepath] = "SKIPPED (not found)"
+                continue
 
             # Baca konten
             content = _read_file_content(filepath)
@@ -184,11 +176,7 @@ class SelfHealer:
                 continue
 
             # Cek apakah file masih ada di sistem
-            out = subprocess.run(
-                f"sudo test -f {filepath} && echo EXISTS",
-                shell=True, capture_output=True, text=True, timeout=5
-            )
-            if "EXISTS" not in (out.stdout or ""):
+            if not host_path_exists(filepath):
                 # File dihapus — ini SANGAT mencurigakan
                 actions.append({
                     "filepath": filepath,
@@ -256,7 +244,7 @@ class SelfHealer:
                         restart_msg = ""
                         if service:
                             restart_result = subprocess.run(
-                                f"sudo systemctl restart {service}",
+                                host_command(f"systemctl restart {service}"),
                                 shell=True, capture_output=True, timeout=15
                             )
                             restart_msg = (

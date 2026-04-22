@@ -3,6 +3,7 @@ import subprocess
 import requests
 from dotenv import load_dotenv
 from pathlib import Path
+from modules.core.host_runtime import HOST_DEFENSE_MODE, host_command
 
 # Load env variables
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -13,7 +14,7 @@ CF_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN")
 CF_ZONE_ID = os.getenv("CLOUDFLARE_ZONE_ID")
 
 # DRY_RUN MODE: Jika True, hanya akan print perintah tanpa eksekusi betulan
-DRY_RUN = True
+DRY_RUN = os.getenv("HEIMDALL_DRY_RUN", "0").lower() in {"1", "true", "yes", "on"}
 
 class Executor:
     """
@@ -115,33 +116,47 @@ class Executor:
             print(f"  [SAFE-MODE] ⚠️ UFW block for {ip} skipped (alert-only)")
             return True
 
-        cmd = ["sudo", "ufw", "insert", "1", "deny", "from", ip, "to", "any"]
+        cmd = "ufw insert 1 deny from {ip} to any".format(ip=ip)
         print(f"[EXECUTOR] [UFW] Mencoba blokir {ip}...")
         
         if DRY_RUN:
-            print(f"  [DRY-RUN] Menjalankan perintah: {' '.join(cmd)}")
+            print(f"  [DRY-RUN] Menjalankan perintah: {cmd}")
             return True
 
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                host_command(cmd),
+                shell=True,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             print(f"  [SUCCESS] IP {ip} diblokir via UFW.")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"  [ERROR] UFW Block Failed (Coba jalankan agent sebagai root/dengan NOPASSWD sudo).")
+            print("  [ERROR] UFW Block Failed.")
+            if HOST_DEFENSE_MODE:
+                print("  [HINT] Host-defense mode membutuhkan namespace host + capability NET_ADMIN/SYS_ADMIN.")
             return False
 
     @staticmethod
     def unblock_ufw(ip: str) -> bool:
         """Buka blokir IP di UFW"""
-        cmd = ["sudo", "ufw", "delete", "deny", "from", ip, "to", "any"]
+        cmd = "ufw delete deny from {ip} to any".format(ip=ip)
         print(f"[EXECUTOR] [UFW] Mencoba unblock {ip}...")
         
         if DRY_RUN:
-            print(f"  [DRY-RUN] Menjalankan perintah: {' '.join(cmd)}")
+            print(f"  [DRY-RUN] Menjalankan perintah: {cmd}")
             return True
 
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                host_command(cmd),
+                shell=True,
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             print(f"  [SUCCESS] IP {ip} di-unblock via UFW.")
             return True
         except subprocess.CalledProcessError as e:

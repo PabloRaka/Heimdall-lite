@@ -1,0 +1,10 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.DS_Store
+logs
+data/security_archive.db
+data/stm_context.json
+data/backups
