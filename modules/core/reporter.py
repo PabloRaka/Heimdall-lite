@@ -32,6 +32,24 @@ load_dotenv(env_path)
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+def format_location_line(ip: str) -> str:
+    try:
+        geo = threat_intel.get_geoip(ip)
+    except Exception:
+        return ""
+
+    country = geo.get("country", "Unknown")
+    region = geo.get("region", "")
+    city = geo.get("city", "")
+
+    if country == "Unknown" and not region and not city:
+        return ""
+
+    parts = [part for part in [city, region, country] if part]
+    if not parts:
+        return ""
+    return f"Location: {', '.join(parts)}\n"
+
 class TelegramReporter:
     """
     Modul untuk melaporkan kejadian ke Admin via Telegram.
@@ -96,7 +114,11 @@ class TelegramReporter:
         executor.block_cloudflare(ip, "Manual Block via Telegram")
         executor.block_ufw(ip)
         LTM.add_incident(ip, "MANUAL", "BLOCK_CF_UFW", "Manual block via Telegram", 1.0)
-        await update.message.reply_text(i18n.t("block_success", ip=ip), parse_mode="Markdown")
+        location_line = format_location_line(ip)
+        await update.message.reply_text(
+            f"{i18n.t('block_success', ip=ip)}\n{location_line}".rstrip(),
+            parse_mode="Markdown",
+        )
 
     async def allow_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if str(update.effective_chat.id) != str(CHAT_ID): return

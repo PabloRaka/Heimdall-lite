@@ -2,6 +2,7 @@ import sqlite3
 import json
 import time
 import threading
+import ipaddress
 from pathlib import Path
 
 # Paths Setup
@@ -12,6 +13,7 @@ STM_PATH = DATA_DIR / "stm_context.json"
 GM_PATH = DATA_DIR / "global_rules.json"
 
 _stm_lock = threading.Lock()
+_db_lock = threading.Lock()
 _gm_cache = None
 
 # Inisialisasi file STM jika belum ada
@@ -90,10 +92,81 @@ class STM:
 
 class LTM:
     """Long-Term Memory - SQLite DB"""
+    _incident_schema_checked = False
     
     @classmethod
     def _get_db_connection(cls):
-        return sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH)
+        cls._ensure_incident_schema(conn)
+        return conn
+
+    @classmethod
+    def _ensure_incident_schema(cls, conn):
+        if cls._incident_schema_checked:
+            return
+
+        with _db_lock:
+            if cls._incident_schema_checked:
+                return
+
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(incidents)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+
+            geo_columns = {
+                "country": "TEXT",
+                "country_code": "TEXT",
+                "region": "TEXT",
+                "city": "TEXT",
+                "isp": "TEXT",
+            }
+            for column, column_type in geo_columns.items():
+                if column not in existing_columns:
+                    cursor.execute(
+                        f"ALTER TABLE incidents ADD COLUMN {column} {column_type}"
+                    )
+
+            conn.commit()
+            cls._incident_schema_checked = True
+
+    @staticmethod
+    def _is_public_ip(ip: str) -> bool:
+        try:
+            parsed = ipaddress.ip_address(ip)
+            return parsed.is_global
+        except ValueError:
+            return False
+
+    @classmethod
+    def _get_geo_context(cls, ip: str) -> dict:
+        if not cls._is_public_ip(ip):
+            return {
+                "country": "Unknown",
+                "country_code": "??",
+                "region": "",
+                "city": "",
+                "isp": "",
+            }
+
+        try:
+            from modules.intel.threat_intel import threat_intel
+
+            intel = threat_intel.get_geoip(ip)
+            return {
+                "country": intel.get("country", "Unknown"),
+                "country_code": intel.get("countryCode", "??"),
+                "region": intel.get("region", ""),
+                "city": intel.get("city", ""),
+                "isp": intel.get("isp", ""),
+            }
+        except Exception:
+            return {
+                "country": "Unknown",
+                "country_code": "??",
+                "region": "",
+                "city": "",
+                "isp": "",
+            }
 
     @classmethod
     def is_whitelisted(cls, ip: str) -> bool:
@@ -131,10 +204,17 @@ class LTM:
         conn = cls._get_db_connection()
         cursor = conn.cursor()
         now = time.strftime("%Y-%m-%dT%H:%M:%S")
+        geo = cls._get_geo_context(ip)
         cursor.execute("""
-            INSERT INTO incidents (ip, timestamp, threat_type, action, reason, confidence)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (ip, now, threat_type, action, reason, confidence))
+            INSERT INTO incidents (
+                ip, timestamp, threat_type, action, reason, confidence,
+                country, country_code, region, city, isp
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            ip, now, threat_type, action, reason, confidence,
+            geo["country"], geo["country_code"], geo["region"], geo["city"], geo["isp"],
+        ))
         conn.commit()
         conn.close()
 

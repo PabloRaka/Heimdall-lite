@@ -170,8 +170,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="pagination" id="pagination-top"></div>
   </div>
   <table>
-    <thead><tr><th>TIMESTAMP</th><th>SRC_IP</th><th>THREAT_SIG</th><th>ACTION</th><th>HEURISTIC_REASON</th><th>CONFIRM_SCORE</th></tr></thead>
-    <tbody id="incidents-body"><tr><td colspan="6" style="text-align:center;">AWAITING_DATA...</td></tr></tbody>
+    <thead><tr><th>TIMESTAMP</th><th>SRC_IP</th><th>REGION</th><th>THREAT_SIG</th><th>ACTION</th><th>HEURISTIC_REASON</th><th>CONFIRM_SCORE</th></tr></thead>
+    <tbody id="incidents-body"><tr><td colspan="7" style="text-align:center;">AWAITING_DATA...</td></tr></tbody>
   </table>
   <div style="display:flex; justify-content:flex-end; margin-top:10px;">
     <div class="pagination" id="pagination-bottom"></div>
@@ -246,15 +246,22 @@ async function fetchLogs(page, perPage) {
     // Render table rows
     const tbody = document.getElementById('incidents-body');
     if (!data.incidents || data.incidents.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">NO_DATA_FOUND</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">NO_DATA_FOUND</td></tr>';
     } else {
       tbody.innerHTML = data.incidents.map(i => {
         let badge = 'safe';
         if (i.action && i.action.includes('BLOCK')) badge = 'block';
         else if (i.action === 'ALERT_ONLY') badge = 'alert';
+        const geoParts = [
+          i.city,
+          i.region,
+          i.country && i.country !== 'Unknown' ? i.country : ''
+        ].filter(Boolean);
+        const geoLabel = geoParts.length ? geoParts.join(', ') : '-';
         return `<tr>
           <td>${i.timestamp || '-'}</td>
           <td style="color:var(--accent); font-weight:bold;">${i.ip || '-'}</td>
+          <td>${geoLabel}</td>
           <td>${i.threat_type || '-'}</td>
           <td><span class="badge ${badge}">${i.action || '-'}</span></td>
           <td>${i.reason || '-'}</td>

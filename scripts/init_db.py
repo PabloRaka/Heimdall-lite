@@ -25,7 +25,12 @@ def init_db():
         threat_type TEXT,
         action      TEXT,
         reason      TEXT,
-        confidence  REAL
+        confidence  REAL,
+        country     TEXT,
+        country_code TEXT,
+        region      TEXT,
+        city        TEXT,
+        isp         TEXT
     )
     """)
 

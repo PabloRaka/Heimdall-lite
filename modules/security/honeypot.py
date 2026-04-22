@@ -4,6 +4,7 @@ import logging
 import threading
 import sqlite3
 import random
+import ipaddress
 from pathlib import Path
 from modules.core.memory import LTM, DB_PATH
 from modules.core.executor import executor
@@ -227,6 +228,35 @@ class FakeHTTPHoneypot(HoneypotServer):
     def __init__(self, port: int = FAKE_HTTP_PORT):
         super().__init__(port, "FakeHTTP")
 
+    @staticmethod
+    def _extract_real_ip(request: str, fallback_ip: str) -> str:
+        headers = {}
+        for line in request.split("\r\n")[1:]:
+            if not line or ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            headers[key.strip().lower()] = value.strip()
+
+        candidates = []
+        for header_name in ("cf-connecting-ip", "x-real-ip"):
+            value = headers.get(header_name)
+            if value:
+                candidates.append(value)
+
+        forwarded = headers.get("x-forwarded-for", "")
+        if forwarded:
+            candidates.extend(part.strip() for part in forwarded.split(",") if part.strip())
+
+        for candidate in candidates:
+            try:
+                parsed = ipaddress.ip_address(candidate)
+                if parsed.is_global:
+                    return candidate
+            except ValueError:
+                continue
+
+        return fallback_ip
+
     def _handle_connection(self, client: socket.socket, addr: tuple):
         ip = addr[0]
 
@@ -236,6 +266,7 @@ class FakeHTTPHoneypot(HoneypotServer):
             # Terima HTTP request dari penyerang
             data = client.recv(4096)
             request = data.decode("utf-8", errors="replace") if data else ""
+            ip = self._extract_real_ip(request, ip)
 
             if "POST" in request:
                 # Penyerang mengirim username/password — capture!

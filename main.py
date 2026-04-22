@@ -52,6 +52,25 @@ from modules.core.safe_mode import safe_mode
 ALERT_DEDUPE_COOLDOWN = int(config.get("pipeline.alert_dedupe_cooldown_seconds", 300))
 CANARY_DEDUPE_COOLDOWN = int(config.get("pipeline.canary_alert_dedupe_cooldown_seconds", 300))
 
+def format_location_line(ip: str) -> str:
+    """Format lokasi ringkas untuk alert Telegram jika IP publik."""
+    try:
+        geo = threat_intel.get_geoip(ip)
+    except Exception:
+        return ""
+
+    country = geo.get("country", "Unknown")
+    region = geo.get("region", "")
+    city = geo.get("city", "")
+
+    if country == "Unknown" and not region and not city:
+        return ""
+
+    parts = [part for part in [city, region, country] if part]
+    if not parts:
+        return ""
+    return f"Location: {', '.join(parts)}\n"
+
 def process_pipeline(event: dict):
     """
     Core Event Loop Pipeline.
@@ -76,8 +95,9 @@ def process_pipeline(event: dict):
             reporter.send_message(f"\u274c Executor error untuk {ip}: {e}")
             
         LTM.add_incident(ip, threat_type="THREAT", action="BLOCK_CF", reason="GM Fast Path match", confidence=1.0)
+        location_line = format_location_line(ip)
         reporter.send_message(
-            f"\u26a1 FAST BLOCK: `{ip}`",
+            f"\u26a1 FAST BLOCK: `{ip}`\n{location_line}".rstrip(),
             dedupe_key=f"fast_block:{ip}",
             cooldown=ALERT_DEDUPE_COOLDOWN,
         )
@@ -100,8 +120,10 @@ def process_pipeline(event: dict):
             print(f"[PIPELINE] \u274c Executor gagal: {e}")
         LTM.add_incident(ip, threat_type="HONEYPOT", action="BLOCK_CF_UFW", 
                          reason=f"Honeypot trap: accessed {path_val}", confidence=1.0)
+        location_line = format_location_line(ip)
         reporter.send_message(
             f"\U0001f36f *HONEYPOT TRAP*\nIP: `{ip}`\nPath: `{path_val}`\n"
+            f"{location_line}"
             f"Action: Blocked (CF + UFW)\nConfidence: 1.0",
             dedupe_key=f"honeypot:{ip}:{path_val}",
             cooldown=ALERT_DEDUPE_COOLDOWN,
@@ -125,8 +147,10 @@ def process_pipeline(event: dict):
         LTM.add_incident(ip, threat_type="DDOS", action="BLOCK_CF_UFW",
                          reason=f"Rate limit: {stm_data['failed_attempts']} attempts in 60min",
                          confidence=0.95)
+        location_line = format_location_line(ip)
         reporter.send_message(
             f"\U0001f6a8 *RATE LIMIT / DDoS*\nIP: `{ip}`\n"
+            f"{location_line}"
             f"Attempts: {stm_data['failed_attempts']} dalam 60 menit\n"
             f"Action: Blocked (CF + UFW)",
             dedupe_key=f"ddos:{ip}",
@@ -171,8 +195,13 @@ def process_pipeline(event: dict):
         if executed:
             LTM.add_incident(ip, threat_type=status, action=action, reason=reason, confidence=confidence)
             STM.flush(ip)
-            
-            msg = f"\U0001f6a8 *THREAT BLOCKED*\nTarget: `{ip}`\nAction: `{action}`\nReason: {reason}\nConfidence: {confidence}"
+
+            location_line = format_location_line(ip)
+            msg = (
+                f"\U0001f6a8 *THREAT BLOCKED*\nTarget: `{ip}`\n"
+                f"{location_line}"
+                f"Action: `{action}`\nReason: {reason}\nConfidence: {confidence}"
+            )
             reporter.send_message(
                 msg,
                 dedupe_key=f"threat_blocked:{ip}:{status}:{action}",
@@ -181,7 +210,12 @@ def process_pipeline(event: dict):
             
     elif action == "ALERT_ONLY":
         print(f"[PIPELINE] \u26a0\ufe0f Keputusan: ALERT {ip}")
-        msg = f"\u26a0\ufe0f *SUSPICIOUS ACTIVITY*\nTarget: `{ip}`\nReason: {reason}\nConfidence: {confidence}"
+        location_line = format_location_line(ip)
+        msg = (
+            f"\u26a0\ufe0f *SUSPICIOUS ACTIVITY*\nTarget: `{ip}`\n"
+            f"{location_line}"
+            f"Reason: {reason}\nConfidence: {confidence}"
+        )
         reporter.send_message(
             msg,
             dedupe_key=f"alert_only:{ip}:{status}",

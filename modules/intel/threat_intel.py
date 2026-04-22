@@ -1,6 +1,7 @@
 import os
 import requests
 import logging
+import ipaddress
 from pathlib import Path
 from dotenv import load_dotenv
 from modules.core.i18n import i18n
@@ -35,6 +36,14 @@ class ThreatIntel:
             cls._cache.clear()
         cls._cache[ip] = data
 
+    @staticmethod
+    def _is_public_ip(ip: str) -> bool:
+        try:
+            parsed = ipaddress.ip_address(ip)
+            return parsed.is_global
+        except ValueError:
+            return False
+
     # ─────────────────────────────────────────────
     # ABUSEIPDB — Reputasi IP Global
     # ─────────────────────────────────────────────
@@ -44,6 +53,17 @@ class ThreatIntel:
         Mengecek reputasi IP di AbuseIPDB.
         Returns: dict berisi abuse_score (0-100), total_reports, country, is_dangerous
         """
+        if not cls._is_public_ip(ip):
+            return {
+                "abuse_score": 0,
+                "total_reports": 0,
+                "country": "??",
+                "isp": "Unknown",
+                "domain": "",
+                "is_tor": False,
+                "is_dangerous": False,
+            }
+
         if not ABUSEIPDB_API_KEY:
             return {"error": "ABUSEIPDB_API_KEY not configured", "is_dangerous": False}
 
@@ -94,23 +114,46 @@ class ThreatIntel:
         Mendapatkan informasi geolokasi IP menggunakan ip-api.com (gratis, tanpa API key).
         Returns: dict berisi country, countryCode, city, isp, org
         """
+        if not cls._is_public_ip(ip):
+            return {
+                "country": "Unknown",
+                "countryCode": "??",
+                "region": "",
+                "city": "",
+                "isp": "",
+                "org": "",
+                "as": "",
+            }
+
         # Cek cache
         cached = cls._get_cached(f"geo_{ip}")
         if cached:
             return cached
 
         try:
-            url = f"http://ip-api.com/json/{ip}?fields=status,message,country,countryCode,city,isp,org,as"
+            url = (
+                f"http://ip-api.com/json/{ip}"
+                "?fields=status,message,country,countryCode,regionName,city,isp,org,as"
+            )
             res = requests.get(url, timeout=5)
             res.raise_for_status()
             data = res.json()
 
             if data.get("status") == "fail":
-                return {"country": "Unknown", "countryCode": "??", "city": "", "isp": "", "org": ""}
+                return {
+                    "country": "Unknown",
+                    "countryCode": "??",
+                    "region": "",
+                    "city": "",
+                    "isp": "",
+                    "org": "",
+                    "as": "",
+                }
 
             result = {
                 "country": data.get("country", "Unknown"),
                 "countryCode": data.get("countryCode", "??"),
+                "region": data.get("regionName", ""),
                 "city": data.get("city", ""),
                 "isp": data.get("isp", ""),
                 "org": data.get("org", ""),
@@ -118,12 +161,23 @@ class ThreatIntel:
             }
 
             cls._set_cached(f"geo_{ip}", result)
-            logger.info(f"[THREAT-INTEL] GeoIP: {ip} -> {result['country']} ({result['city']})")
+            logger.info(
+                f"[THREAT-INTEL] GeoIP: {ip} -> "
+                f"{result['country']} / {result['region']} ({result['city']})"
+            )
             return result
 
         except Exception as e:
             logger.warning(f"[THREAT-INTEL] GeoIP error: {e}")
-            return {"country": "Unknown", "countryCode": "??", "city": "", "isp": "", "org": ""}
+            return {
+                "country": "Unknown",
+                "countryCode": "??",
+                "region": "",
+                "city": "",
+                "isp": "",
+                "org": "",
+                "as": "",
+            }
 
     # ─────────────────────────────────────────────
     # ENRICHMENT — Gabungkan semua data intelijen
@@ -141,6 +195,7 @@ class ThreatIntel:
             "ip": ip,
             "country": geo.get("country", "Unknown"),
             "country_code": geo.get("countryCode", "??"),
+            "region": geo.get("region", ""),
             "city": geo.get("city", ""),
             "isp": geo.get("isp", ""),
             "abuse_score": abuse.get("abuse_score", 0),
@@ -160,6 +215,7 @@ class ThreatIntel:
         return (
             f"{i18n.t('intel_title', ip=ip)}\n"
             f"{i18n.t('intel_country')}: {data['country']} ({data['country_code']})\n"
+            f"Region: {data['region'] or '-'}\n"
             f"{i18n.t('intel_city')}: {data['city'] or '-'}\n"
             f"{i18n.t('intel_isp')}: {data['isp'] or '-'}\n"
             f"{i18n.t('intel_abuse_score')}: {data['abuse_score']}/100\n"
