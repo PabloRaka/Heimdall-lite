@@ -36,9 +36,10 @@ CANARY_CONTENT = {
 class CanaryEventHandler(FileSystemEventHandler):
     """Watchdog handler yang mendeteksi akses ke file canary"""
 
-    def __init__(self, callback):
+    def __init__(self, callback, watched_files):
         super().__init__()
         self.callback = callback
+        self.watched_files = {str(Path(path).resolve()) for path in watched_files}
 
     def on_modified(self, event):
         if not event.is_directory:
@@ -53,6 +54,10 @@ class CanaryEventHandler(FileSystemEventHandler):
             self._trigger(event.src_path, "DELETED")
 
     def _trigger(self, filepath, action):
+        resolved_path = str(Path(filepath).resolve())
+        if resolved_path not in self.watched_files:
+            return
+
         logger.warning(f"[CANARY] 🚨 File canary tersentuh! {filepath} -> {action}")
         if self.callback:
             self.callback(filepath, action)
@@ -196,7 +201,11 @@ class CanarySystem:
                 return
 
             self.observer = Observer()
-            handler = CanaryEventHandler(callback=alert_callback)
+            watched_files = list(manifest.keys())
+            handler = CanaryEventHandler(
+                callback=alert_callback,
+                watched_files=watched_files,
+            )
 
             # Monitor setiap direktori parent dari canary files
             watched_dirs = set()
